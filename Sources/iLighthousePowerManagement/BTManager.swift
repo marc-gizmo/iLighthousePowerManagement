@@ -2,17 +2,16 @@ import Foundation
 import CoreBluetooth
 import Combine
 
-struct Peripheral: Identifiable {
+struct LighthouseBaseStation: Identifiable {
     let id = UUID()
     let peripheral: CBPeripheral
     let name: String
-    let rssi: NSNumber
     let advertisementData: [String: Any]
-    let isLighthouseBaseStation: Bool
+    let rssi: NSNumber
 }
 
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    @Published var devices: [Peripheral] = []
+    @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
 
     override init() {
@@ -39,7 +38,7 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
     /// Check wether a BT peripheral is an Lighthouse Base Station
     ///
     /// ```
-    /// Lighthouse Base Station / Lighthouse 2.0 device name all
+    /// Lighthouse Base Station / Lighthouse 2.0 devices name all
     /// start with the prefix "LHB-" followed by 8 hex chars
     /// ```
     /// 
@@ -47,33 +46,39 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
     ///     - peripheral: the BT peripheral to check
     ///
     /// - Returns: true if the peripheral is a Lighthouse Base Station
-    func filterLighthouseBaseStation(peripheral: CBPeripheral) -> Bool {
+    func isLighthouseBaseStation(peripheral: CBPeripheral) -> Bool {
         let lighthouseBaseStationPattern = #"^LHB-[A-F0-9]{8}$"#
         return peripheral.name?.range(of: lighthouseBaseStationPattern,
             options: .regularExpression) != nil
     }
 
     // when a device/peripheral is found, this will be called
-    // if the peripheral is new, it's added to the var peripherals
+    // if the peripheral is new, we check wether it'a Lighthouse
+    // Base Station before adding it to the var peripherals
     // and the view will be updated (@Published)
     func centralManager(_ central: CBCentralManager,
                         didDiscover peripheral: CBPeripheral,
                         advertisementData: [String : Any],
                         rssi RSSI: NSNumber) {
-        let name = peripheral.name ??
-            (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ??
-            "Unknown"
+        // ignore everything but Lighthouse Base Station
+        guard isLighthouseBaseStation(peripheral: peripheral) else {
+            print("Peripheral: \(peripheral.name ?? "Unknown") was not a Lighthouse Base Station")
+            return
+        }
+        guard let name = peripheral.name else {
+            // Should never happen if isLighthouseBaseStation() was true
+            return
+        }
         // Avoid duplicates by checking peripheral identifier
         if !devices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
-            let newDevice = Peripheral(
+            let newLHBS = LighthouseBaseStation(
                 peripheral: peripheral,
                 name: name,
-                rssi: RSSI,
                 advertisementData: advertisementData,
-                isLighthouseBaseStation: filterLighthouseBaseStation(peripheral: peripheral)
+                rssi: RSSI
             )
-            devices.append(newDevice)
-            print("Discovered: \(name)")
+            devices.append(newLHBS)
+            print("Discovered new Lighthouse Base Station: \(name)")
         }
     }
 }

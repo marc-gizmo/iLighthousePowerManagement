@@ -3,7 +3,7 @@ import CoreBluetooth
 
 struct ContentView: View {
     // this will enable the BT Manager in background.
-    @ObservedObject var btManager = BTManager()
+    @StateObject var btManager = BTManager()
 
     var body: some View {
         NavigationView {
@@ -13,10 +13,6 @@ struct ContentView: View {
                         .font(.headline)
 
                     // For now, just dump info about devices found
-                    Text("Lighthouse Base Station: \(device.isLighthouseBaseStation.description)")
-                        .font(.subheadline)
-                        .foregroundColor(device.isLighthouseBaseStation ? Color.green : Color.red)
-                        
                     Text("RSSI: \(device.rssi)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -43,7 +39,8 @@ struct ContentView: View {
                 }
                 .padding(.vertical, 4)
             }
-            .navigationTitle("Nearby BT Devices")
+            .navigationTitle("Nearby Lighthouse Base Stations")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
