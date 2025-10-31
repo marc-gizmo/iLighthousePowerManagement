@@ -8,6 +8,8 @@ struct LighthouseBaseStation: Identifiable {
     let name: String
     let advertisementData: [String: Any]
     let rssi: NSNumber
+    var connected: Bool = false
+    var services: [CBService] = []
 }
 
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
@@ -79,6 +81,52 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
             )
             devices.append(newLHBS)
             print("Discovered new Lighthouse Base Station: \(name)")
+            centralManager.connect(peripheral, options: nil)
+        }
+    }
+
+    // when connecting to a peripheral (Lighthouse Base Station) this will be called
+    // and we want to discover all services available.
+    // while here, update the matching device to "connected"
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        print("Connected to \(peripheral.name ?? "Unknown")")
+
+        if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+            devices[index].connected = true
+        }
+
+        peripheral.discoverServices(nil)
+        peripheral.delegate = self
+    }
+
+    // when a service is discovered this will be called
+    // and we want to discover all characteristics of the service.
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if let error = error {
+            print("Error discovering services: \(error.localizedDescription)")
+            return
+        }
+
+        guard let services = peripheral.services else { return }
+
+        for service in services {
+            print("Discovered service: \(service.uuid)")
+            // Trigger characteristics discovery for each service
+            peripheral.discoverCharacteristics(nil, for: service)
+        }
+    }
+
+    // when a service's characteristics are discovered this will be called
+    // and we want update the matching device and fill each service and it's characteristics
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if let error = error {
+            print("Error discovering characteristics: \(error.localizedDescription)")
+            return
+        }
+
+        // update the matching Lighthouse with discovered service
+        if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+            devices[index].services.append(service)
         }
     }
 }

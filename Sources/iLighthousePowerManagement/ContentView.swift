@@ -13,14 +13,18 @@ struct ContentView: View {
                         .font(.headline)
 
                     // For now, just dump info about devices found
+                    Text("Connected: \(device.connected ? "Yes" : "No")")
+                        .font(.subheadline)
+                        .foregroundColor(device.connected ? Color.green : Color.red)
+
                     Text("RSSI: \(device.rssi)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     if let manufacturerData = device.advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
                         Text("Manufacturer Data: \(manufacturerData.map { String(format: "%02x", $0) }.joined())")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
 
@@ -31,10 +35,29 @@ struct ContentView: View {
                             .lineLimit(1)
                     }
 
-                    ForEach(device.advertisementData.keys.sorted(), id: \.self) { key in
-                        Text("\(key): \(String(describing: device.advertisementData[key]!))")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
+                    Section(header: Text("advertisementData:")
+                      .font(.subheadline)
+                      .foregroundColor(.secondary)
+                      .lineLimit(1)) {
+                        ForEach(device.advertisementData.keys.sorted(), id: \.self) { key in
+                            Text("  \(key): \(String(describing: device.advertisementData[key]!))")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        }
+                    }
+
+                    ForEach(device.services, id: \.uuid) { service in
+                        Section(header: Text("Service: \(service.uuid.uuidString)")
+                          .font(.subheadline)
+                          .foregroundColor(.secondary)
+                          .lineLimit(1)) {
+                            ForEach(service.characteristics ?? [], id: \.uuid) { characteristic in
+                                Text("    Characteristic: \(characteristic.uuid.uuidString)")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                    .lineLimit(1)
+                            }
+                        }
                     }
                 }
                 .padding(.vertical, 4)
