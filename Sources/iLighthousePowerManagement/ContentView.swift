@@ -13,6 +13,10 @@ struct ContentView: View {
                         .font(.headline)
 
                     // For now, just dump info about devices found
+                    Text("Lighthouse Base Station: \(device.isLighthouseBaseStation.description)")
+                        .font(.subheadline)
+                        .foregroundColor(device.isLighthouseBaseStation ? Color.green : Color.red)
+                        
                     Text("RSSI: \(device.rssi)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)

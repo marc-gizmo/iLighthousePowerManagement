@@ -8,6 +8,7 @@ struct Peripheral: Identifiable {
     let name: String
     let rssi: NSNumber
     let advertisementData: [String: Any]
+    let isLighthouseBaseStation: Bool
 }
 
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
@@ -35,6 +36,23 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
         }
     }
 
+    /// Check wether a BT peripheral is an Lighthouse Base Station
+    ///
+    /// ```
+    /// Lighthouse Base Station / Lighthouse 2.0 device name all
+    /// start with the prefix "LHB-" followed by 8 hex chars
+    /// ```
+    /// 
+    /// - Parameters:
+    ///     - peripheral: the BT peripheral to check
+    ///
+    /// - Returns: true if the peripheral is a Lighthouse Base Station
+    func filterLighthouseBaseStation(peripheral: CBPeripheral) -> Bool {
+        let lighthouseBaseStationPattern = #"^LHB-[A-F0-9]{8}$"#
+        return peripheral.name?.range(of: lighthouseBaseStationPattern,
+            options: .regularExpression) != nil
+    }
+
     // when a device/peripheral is found, this will be called
     // if the peripheral is new, it's added to the var peripherals
     // and the view will be updated (@Published)
@@ -51,7 +69,8 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
                 peripheral: peripheral,
                 name: name,
                 rssi: RSSI,
-                advertisementData: advertisementData
+                advertisementData: advertisementData,
+                isLighthouseBaseStation: filterLighthouseBaseStation(peripheral: peripheral)
             )
             devices.append(newDevice)
             print("Discovered: \(name)")
