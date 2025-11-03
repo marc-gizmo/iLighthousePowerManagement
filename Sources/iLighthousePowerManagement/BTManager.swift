@@ -9,12 +9,15 @@ struct LighthouseBaseStation: Identifiable {
     let advertisementData: [String: Any]
     let rssi: NSNumber
     var connected: Bool = false
+    var rawCharacteristic: UInt8?
+    var isPoweredOn: UInt8?
     var services: [CBService] = []
 }
 
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
+    private let poweredOnCharacteristicUUID = CBUUID(string: "00001525-1212-EFDE-1523-785FEABCD124")
 
     override init() {
         super.init()
@@ -128,5 +131,44 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
         if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
             devices[index].services.append(service)
         }
+
+        // if the service/characteristic match the poweredOn status uuid
+        // set the notify property to true to enable read.
+        guard let characteristics = service.characteristics else { return }
+        for characteristic in characteristics {
+            if characteristic.uuid == poweredOnCharacteristicUUID {
+                peripheral.setNotifyValue(true, for: characteristic)
+                peripheral.readValue(for: characteristic)
+            }
+        }
+    }
+
+    // this function will be called to read the value of service/characteristic "poweredOn"
+    // on our lighthouse base station
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if characteristic.uuid == poweredOnCharacteristicUUID {
+            if let data = characteristic.value {
+                let rawCharacteristic = data[0]
+                let isPoweredOn = (rawCharacteristic & 0x01)
+                print(String(format: "Lighthouse Base Station power status: 0x%02X → poweredOn=0x%02X", rawCharacteristic, isPoweredOn))
+                if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+                    devices[index].rawCharacteristic = rawCharacteristic
+                    devices[index].isPoweredOn = isPoweredOn
+                }
+            }
+        }
+    }
+
+    func toggleBaseStationPower(on: Bool,
+      peripheral: CBPeripheral,
+      characteristic: CBCharacteristic,
+      index: Int) {
+        let value: UInt8 = on ? 0x01 : 0x00
+        let data = Data([value])
+
+        guard characteristic.uuid == poweredOnCharacteristicUUID else { return }
+
+        peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        print("Sent \(on ? "0x01 (ON)" : "0x00 (OFF)") to \(characteristic.uuid)")
     }
 }

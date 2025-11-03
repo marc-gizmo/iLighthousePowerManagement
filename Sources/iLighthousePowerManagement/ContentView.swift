@@ -17,6 +17,12 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(device.connected ? Color.green : Color.red)
 
+                    Text(device.rawCharacteristic != nil && device.isPoweredOn != nil
+                      ? String(format: "Power Status: 0x%02X → 0x%02X", device.rawCharacteristic!, device.isPoweredOn!)
+                      : "Power Status: Unknown")
+                        .font(.subheadline)
+                        .foregroundColor(.yellow)
+
                     Text("RSSI: \(device.rssi)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
