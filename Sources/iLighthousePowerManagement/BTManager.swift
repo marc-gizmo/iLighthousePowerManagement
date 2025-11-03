@@ -9,9 +9,47 @@ struct LighthouseBaseStation: Identifiable {
     let advertisementData: [String: Any]
     let rssi: NSNumber
     var connected: Bool = false
-    var rawCharacteristic: UInt8?
-    var isPoweredOn: UInt8?
+    var rawPowerState: UInt8?
+    var lighthousePowerState: LighthousePowerState = .unknown
     var services: [CBService] = []
+}
+
+enum LighthousePowerState: UInt8 {
+    case sleep   = 0x00
+    case standby = 0x02
+    case on      = 0x0b
+    case booting //booting can map multiple values
+    case unknown
+
+    init(hex: UInt8) {
+        switch hex {
+        case 0x00:
+            self = .sleep
+        case 0x02:
+            self = .standby
+        case 0x0b:
+            self = .on
+        case 0x01, 0x08, 0x09:
+            self = .booting
+        default:
+            self = .unknown
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .sleep:
+            return "Sleep"
+        case .standby:
+            return "Standby"
+        case .on:
+            return "On"
+        case .booting:
+            return "Booting"
+        default:
+            return "Unknown"
+        }
+    }
 }
 
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
@@ -148,12 +186,11 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if characteristic.uuid == poweredOnCharacteristicUUID {
             if let data = characteristic.value {
-                let rawCharacteristic = data[0]
-                let isPoweredOn = (rawCharacteristic & 0x01)
-                print(String(format: "Lighthouse Base Station power status: 0x%02X → poweredOn=0x%02X", rawCharacteristic, isPoweredOn))
+                let rawPowerState = data[0]
+                print(String(format: "Lighthouse Base Station power status: 0x%02X", rawPowerState))
                 if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
-                    devices[index].rawCharacteristic = rawCharacteristic
-                    devices[index].isPoweredOn = isPoweredOn
+                    devices[index].rawPowerState = rawPowerState
+                    devices[index].lighthousePowerState = LighthousePowerState(hex: rawPowerState)
                 }
             }
         }
