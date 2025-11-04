@@ -3,12 +3,12 @@ import CoreBluetooth
 
 struct ContentView: View {
     // this will enable the BT Manager in background.
-    @StateObject var btManager = BTManager()
+    @StateObject var lighthouseBLEManager: LighthouseBLEManager = LighthouseBLEManager()
 
     var body: some View {
         NavigationView {
-            List(btManager.devices) { device in
-                DeviceRow(btManager: btManager, device: device)
+            List(lighthouseBLEManager.devices) { device in
+                DeviceRow(lighthouseBLEManager: lighthouseBLEManager, device: device)
             }
             .navigationTitle("Nearby Lighthouse Base Stations")
             .navigationBarTitleDisplayMode(.inline)
@@ -18,7 +18,7 @@ struct ContentView: View {
 
 
 struct DeviceRow: View {
-    let btManager: BTManager
+    let lighthouseBLEManager: LighthouseBLEManager
     let device: LighthouseBaseStation
     @State private var isVisible = true
 
@@ -86,19 +86,19 @@ struct DeviceRow: View {
 
                 HStack(spacing: 20) {
                     Button("Lighthouse On", action: {
-                        btManager.setBaseStationPower(state: .on,
+                        lighthouseBLEManager.setBaseStationPower(state: .on,
                             lighthouseBaseStation: device)
                     })
                     .foregroundColor(.green)
                     .buttonStyle(.bordered)
                     Button("Lighthouse Off", action: {
-                        btManager.setBaseStationPower(state: .sleep,
+                        lighthouseBLEManager.setBaseStationPower(state: .sleep,
                             lighthouseBaseStation: device)
                     })
                     .foregroundColor(.red)
                     .buttonStyle(.bordered)
                                         Button("Lighthouse standby", action: {
-                        btManager.setBaseStationPower(state: .standby,
+                        lighthouseBLEManager.setBaseStationPower(state: .standby,
                             lighthouseBaseStation: device)
                     })
                     .foregroundColor(.orange)

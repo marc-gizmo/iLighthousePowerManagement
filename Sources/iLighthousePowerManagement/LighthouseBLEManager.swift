@@ -53,7 +53,7 @@ enum LighthousePowerCommand: UInt8 {
     case on      = 0x01
 }
 
-class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
     // Characteristic UUID
