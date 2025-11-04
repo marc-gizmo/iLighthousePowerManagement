@@ -1,6 +1,6 @@
-import Foundation
-import CoreBluetooth
 import Combine
+import CoreBluetooth
+import Foundation
 
 struct LighthouseBaseStation: Identifiable {
     let id = UUID()
@@ -53,15 +53,18 @@ enum LighthousePowerCommand: UInt8 {
     case on      = 0x01
 }
 
-class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+class LighthouseBLEManager: NSObject,
+        ObservableObject,
+        CBCentralManagerDelegate,
+        CBPeripheralDelegate {
     @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
     // Characteristic UUID
     private let poweredOnCharacteristicUUID = CBUUID(string: "00001525-1212-EFDE-1523-785FEABCD124")
-    private let channelCharacteristicUUID =   CBUUID(string: "00001524-1212-EFDE-1523-785FEABCD124")
-    private let identifyCharacteristicUUID =  CBUUID(string: "00008421-1212-EFDE-1523-785FEABCD124")
+    private let channelCharacteristicUUID   = CBUUID(string: "00001524-1212-EFDE-1523-785FEABCD124")
+    private let identifyCharacteristicUUID  = CBUUID(string: "00008421-1212-EFDE-1523-785FEABCD124")
     // Service UUID
-    private let controlServiceUUID =  CBUUID(string: "00001523-1212-EFDE-1523-785FEABCD124")
+    private let controlServiceUUID = CBUUID(string: "00001523-1212-EFDE-1523-785FEABCD124")
 
     override init() {
         super.init()
@@ -90,7 +93,7 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
     /// Lighthouse Base Station / Lighthouse 2.0 devices name all
     /// start with the prefix "LHB-" followed by 8 hex chars
     /// ```
-    /// 
+    ///
     /// - Parameters:
     ///     - peripheral: the BT peripheral to check
     ///
@@ -98,7 +101,7 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
     func isLighthouseBaseStation(peripheral: CBPeripheral) -> Bool {
         let lighthouseBaseStationPattern = #"^LHB-[A-F0-9]{8}$"#
         return peripheral.name?.range(of: lighthouseBaseStationPattern,
-            options: .regularExpression) != nil
+                options: .regularExpression) != nil
     }
 
     // when a device/peripheral is found, this will be called
@@ -106,18 +109,20 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
     // Base Station before adding it to the var peripherals
     // and the view will be updated (@Published)
     func centralManager(_ central: CBCentralManager,
-                        didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String : Any],
-                        rssi RSSI: NSNumber) {
+            didDiscover peripheral: CBPeripheral,
+            advertisementData: [String: Any],
+            rssi RSSI: NSNumber) {
         // ignore everything but Lighthouse Base Station
         guard isLighthouseBaseStation(peripheral: peripheral) else {
             print("Peripheral: \(peripheral.name ?? "Unknown") was not a Lighthouse Base Station")
             return
         }
+
         guard let name = peripheral.name else {
             // Should never happen if isLighthouseBaseStation() was true
             return
         }
+
         // Avoid duplicates by checking peripheral identifier
         if !devices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) {
             let newLHBS = LighthouseBaseStation(
@@ -138,7 +143,8 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "Unknown")")
 
-        if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+        if let index = devices.firstIndex(
+                where: { $0.peripheral.identifier == peripheral.identifier }) {
             devices[index].connected = true
         }
 
@@ -165,14 +171,17 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
 
     // when a service's characteristics are discovered this will be called
     // and we want update the matching device and fill each service and it's characteristics
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral,
+            didDiscoverCharacteristicsFor service: CBService,
+            error: Error?) {
         if let error = error {
             print("Error discovering characteristics: \(error.localizedDescription)")
             return
         }
 
         // update the matching Lighthouse with discovered service
-        if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+        if let index = devices.firstIndex(
+                where: { $0.peripheral.identifier == peripheral.identifier }) {
             devices[index].services.append(service)
 
             // if the service/characteristic match an expected characteristics UUID
@@ -180,7 +189,7 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
             // property to true to enable read.
             guard let characteristics = service.characteristics else { return }
             for characteristic in characteristics {
-                switch  characteristic.uuid {
+                switch characteristic.uuid {
                 case poweredOnCharacteristicUUID:
                     devices[index].powerStateCharacteristic = characteristic
                     peripheral.setNotifyValue(true, for: characteristic)
@@ -202,32 +211,37 @@ class LighthouseBLEManager: NSObject, ObservableObject, CBCentralManagerDelegate
 
     // this function will be called to read the value of service/characteristic "poweredOn"
     // on our lighthouse base station
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral,
+            didUpdateValueFor characteristic: CBCharacteristic,
+            error: Error?) {
         switch characteristic.uuid {
         case poweredOnCharacteristicUUID:
             if let data = characteristic.value {
                 let rawPowerState = data[0]
                 print(String(format: "Lighthouse Base Station power status: 0x%02X", rawPowerState))
-                if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+                if let index = devices.firstIndex(
+                        where: { $0.peripheral.identifier == peripheral.identifier }) {
                     devices[index].rawPowerState = rawPowerState
                     devices[index].lighthousePowerState = LighthousePowerState(hex: rawPowerState)
                 }
             }
         case channelCharacteristicUUID:
-                if let data = characteristic.value {
-                    let rawChannel = data[0]
-                    print(String(format: "Lighthouse Base Station channel: 0x%02X", rawChannel))
-                    if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
-                        devices[index].rawChannel = rawChannel
-                    }
+            if let data = characteristic.value {
+                let rawChannel = data[0]
+                print(String(format: "Lighthouse Base Station channel: 0x%02X", rawChannel))
+                if let index = devices.firstIndex(
+                        where: { $0.peripheral.identifier == peripheral.identifier }) {
+                    devices[index].rawChannel = rawChannel
                 }
+            }
         default:
             break
         }
     }
 
-    func setBaseStationPower(state: LighthousePowerCommand,
-      lighthouseBaseStation: LighthouseBaseStation) {
+    func setBaseStationPower(
+            state: LighthousePowerCommand,
+            lighthouseBaseStation: LighthouseBaseStation)
         let data = Data([state.rawValue])
 
         // make sure powerStateCharacteristic has been discovered on the lighthouseBaseStation

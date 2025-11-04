@@ -14,11 +14,11 @@ let package = Package(
         .library(
             name: "iLighthousePowerManagement",
             targets: ["iLighthousePowerManagement"]
-        ),
+        )
     ],
     targets: [
         .target(
             name: "iLighthousePowerManagement"
-        ),
+        )
     ]
 )

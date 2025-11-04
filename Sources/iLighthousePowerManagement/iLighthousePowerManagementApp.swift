@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct iLighthousePowerManagementApp: App {
+struct LighthousePowerManagementApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
