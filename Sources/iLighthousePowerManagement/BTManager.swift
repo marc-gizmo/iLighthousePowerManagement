@@ -9,8 +9,12 @@ struct LighthouseBaseStation: Identifiable {
     let advertisementData: [String: Any]
     let rssi: NSNumber
     var connected: Bool = false
+    var powerStateCharacteristic: CBCharacteristic?
     var rawPowerState: UInt8?
     var lighthousePowerState: LighthousePowerState = .unknown
+    var channelCharacteristic: CBCharacteristic?
+    var rawChannel: UInt8?
+    var identifyCharacteristic: CBCharacteristic?
     var services: [CBService] = []
 }
 
@@ -55,7 +59,12 @@ enum LighthousePowerState: UInt8 {
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
+    // Characteristic UUID
     private let poweredOnCharacteristicUUID = CBUUID(string: "00001525-1212-EFDE-1523-785FEABCD124")
+    private let channelCharacteristicUUID =   CBUUID(string: "00001524-1212-EFDE-1523-785FEABCD124")
+    private let identifyCharacteristicUUID =  CBUUID(string: "00008421-1212-EFDE-1523-785FEABCD124")
+    // Service UUID
+    private let controlServiceUUID =  CBUUID(string: "00001523-1212-EFDE-1523-785FEABCD124")
 
     override init() {
         super.init()
@@ -168,15 +177,28 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
         // update the matching Lighthouse with discovered service
         if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
             devices[index].services.append(service)
-        }
 
-        // if the service/characteristic match the poweredOn status uuid
-        // set the notify property to true to enable read.
-        guard let characteristics = service.characteristics else { return }
-        for characteristic in characteristics {
-            if characteristic.uuid == poweredOnCharacteristicUUID {
-                peripheral.setNotifyValue(true, for: characteristic)
-                peripheral.readValue(for: characteristic)
+            // if the service/characteristic match an expected characteristics UUID
+            // save the characteristic on the device and set the notify
+            // property to true to enable read.
+            guard let characteristics = service.characteristics else { return }
+            for characteristic in characteristics {
+                switch  characteristic.uuid {
+                case poweredOnCharacteristicUUID:
+                    devices[index].powerStateCharacteristic = characteristic
+                    peripheral.setNotifyValue(true, for: characteristic)
+                    peripheral.readValue(for: characteristic)
+                case channelCharacteristicUUID:
+                    devices[index].channelCharacteristic = characteristic
+                    peripheral.setNotifyValue(true, for: characteristic)
+                    peripheral.readValue(for: characteristic)
+                case identifyCharacteristicUUID:
+                    devices[index].identifyCharacteristic = characteristic
+                    peripheral.setNotifyValue(true, for: characteristic)
+                    peripheral.readValue(for: characteristic)
+                default:
+                    break
+                }
             }
         }
     }
@@ -184,7 +206,8 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
     // this function will be called to read the value of service/characteristic "poweredOn"
     // on our lighthouse base station
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        if characteristic.uuid == poweredOnCharacteristicUUID {
+        switch characteristic.uuid {
+        case poweredOnCharacteristicUUID:
             if let data = characteristic.value {
                 let rawPowerState = data[0]
                 print(String(format: "Lighthouse Base Station power status: 0x%02X", rawPowerState))
@@ -193,6 +216,16 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
                     devices[index].lighthousePowerState = LighthousePowerState(hex: rawPowerState)
                 }
             }
+        case channelCharacteristicUUID:
+                if let data = characteristic.value {
+                    let rawChannel = data[0]
+                    print(String(format: "Lighthouse Base Station channel: 0x%02X", rawChannel))
+                    if let  index = devices.firstIndex(where: { $0.peripheral.identifier == peripheral.identifier}) {
+                        devices[index].rawChannel = rawChannel
+                    }
+                }
+        default:
+            break
         }
     }
 

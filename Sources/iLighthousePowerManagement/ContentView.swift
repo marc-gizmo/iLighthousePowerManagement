@@ -73,6 +73,12 @@ struct DeviceRow: View {
                         }
                     }
 
+                if let rawChannel: UInt8 = device.rawChannel {
+                    Text(String(format: "Channel: %d (0x%02X)", rawChannel, rawChannel))
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+
                 Text("RSSI: \(device.rssi)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
