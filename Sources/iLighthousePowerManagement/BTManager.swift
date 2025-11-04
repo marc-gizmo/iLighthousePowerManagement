@@ -27,31 +27,22 @@ enum LighthousePowerState: UInt8 {
 
     init(hex: UInt8) {
         switch hex {
-        case 0x00:
-            self = .sleep
-        case 0x02:
-            self = .standby
-        case 0x0b:
-            self = .on
+        case 0x00: self = .sleep
+        case 0x02: self = .standby
+        case 0x0b: self = .on
         case 0x01, 0x08, 0x09:
-            self = .booting
-        default:
-            self = .unknown
+                   self = .booting
+        default:   self = .unknown
         }
     }
 
     var name: String {
         switch self {
-        case .sleep:
-            return "Sleep"
-        case .standby:
-            return "Standby"
-        case .on:
-            return "On"
-        case .booting:
-            return "Booting"
-        default:
-            return "Unknown"
+        case .sleep:   return "Sleep"
+        case .standby: return "Standby"
+        case .on:      return "On"
+        case .booting: return "Booting"
+        default:       return "Unknown"
         }
     }
 }
