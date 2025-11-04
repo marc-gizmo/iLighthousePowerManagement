@@ -56,6 +56,12 @@ enum LighthousePowerState: UInt8 {
     }
 }
 
+enum LighthousePowerCommand: UInt8 {
+    case sleep   = 0x00
+    case standby = 0x02
+    case on      = 0x01
+}
+
 class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var devices: [LighthouseBaseStation] = []
     private var centralManager: CBCentralManager!
@@ -229,16 +235,12 @@ class BTManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriphe
         }
     }
 
-    func toggleBaseStationPower(on: Bool,
-      peripheral: CBPeripheral,
-      characteristic: CBCharacteristic,
-      index: Int) {
-        let value: UInt8 = on ? 0x01 : 0x00
-        let data = Data([value])
+    func setBaseStationPower(state: LighthousePowerCommand,
+      lighthouseBaseStation: LighthouseBaseStation) {
+        let data = Data([state.rawValue])
 
-        guard characteristic.uuid == poweredOnCharacteristicUUID else { return }
-
-        peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        print("Sent \(on ? "0x01 (ON)" : "0x00 (OFF)") to \(characteristic.uuid)")
+        // make sure powerStateCharacteristic has been discovered on the lighthouseBaseStation
+        guard let characteristic = lighthouseBaseStation.powerStateCharacteristic else { return }
+        lighthouseBaseStation.peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 }

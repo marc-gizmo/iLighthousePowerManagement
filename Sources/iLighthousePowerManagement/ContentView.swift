@@ -8,7 +8,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             List(btManager.devices) { device in
-                DeviceRow(device: device)
+                DeviceRow(btManager: btManager, device: device)
             }
             .navigationTitle("Nearby Lighthouse Base Stations")
             .navigationBarTitleDisplayMode(.inline)
@@ -18,6 +18,7 @@ struct ContentView: View {
 
 
 struct DeviceRow: View {
+    let btManager: BTManager
     let device: LighthouseBaseStation
     @State private var isVisible = true
 
@@ -82,6 +83,27 @@ struct DeviceRow: View {
                 Text("RSSI: \(device.rssi)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+
+                HStack(spacing: 20) {
+                    Button("Lighthouse On", action: {
+                        btManager.setBaseStationPower(state: .on,
+                            lighthouseBaseStation: device)
+                    })
+                    .foregroundColor(.green)
+                    .buttonStyle(.bordered)
+                    Button("Lighthouse Off", action: {
+                        btManager.setBaseStationPower(state: .sleep,
+                            lighthouseBaseStation: device)
+                    })
+                    .foregroundColor(.red)
+                    .buttonStyle(.bordered)
+                                        Button("Lighthouse standby", action: {
+                        btManager.setBaseStationPower(state: .standby,
+                            lighthouseBaseStation: device)
+                    })
+                    .foregroundColor(.orange)
+                    .buttonStyle(.bordered)
+                }
 
                 if let manufacturerData = device.advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
                     Text("Manufacturer Data: \(manufacturerData.map { String(format: "%02x", $0) }.joined())")
