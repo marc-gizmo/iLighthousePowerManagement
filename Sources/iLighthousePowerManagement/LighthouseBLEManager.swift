@@ -2,6 +2,7 @@ import Combine
 import CoreBluetooth
 import Foundation
 
+// MARK: - LighthouseBaseStation
 struct LighthouseBaseStation: Identifiable {
     let id = UUID()
     let peripheral: CBPeripheral
@@ -18,6 +19,7 @@ struct LighthouseBaseStation: Identifiable {
     var services: [CBService] = []
 }
 
+// MARK: - LighthousePowerState
 enum LighthousePowerState: UInt8 {
     case sleep   = 0x00
     case standby = 0x02
@@ -47,32 +49,49 @@ enum LighthousePowerState: UInt8 {
     }
 }
 
+// MARK: - LighthousePowerCommand
 enum LighthousePowerCommand: UInt8 {
     case sleep   = 0x00
     case standby = 0x02
     case on      = 0x01
 }
 
+
+// MARK: - LighthouseBLEManager
+/// Manages Bluetooth Low Energy discovery and communication
+/// with Valve Lighthouse Base Stations V2
 class LighthouseBLEManager: NSObject,
         ObservableObject,
         CBCentralManagerDelegate,
         CBPeripheralDelegate {
+
+     // MARK: - Published Properties
+
+    /// List of discovered Lighthouse Base Stations.
     @Published var devices: [LighthouseBaseStation] = []
+
+    // MARK: - Private Properties
+
     private var centralManager: CBCentralManager!
-    // Characteristic UUID
+
+    // Characteristic UUIDs
     private let poweredOnCharacteristicUUID = CBUUID(string: "00001525-1212-EFDE-1523-785FEABCD124")
     private let channelCharacteristicUUID   = CBUUID(string: "00001524-1212-EFDE-1523-785FEABCD124")
     private let identifyCharacteristicUUID  = CBUUID(string: "00008421-1212-EFDE-1523-785FEABCD124")
+
     // Service UUID
     private let controlServiceUUID = CBUUID(string: "00001523-1212-EFDE-1523-785FEABCD124")
 
+    // MARK: - Initialization
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
-    // Check centralManager state, if it's poweredOn (bluetooth available) start scanning
-    // CoreBluetooth will call this function when the BT is ready
+    // MARK: - CBCentralManagerDelegate
+    /// Called when the Bluetooth central manager state changes
+    ///
+    /// Starts scanning for peripherals when Bluetooth becomes available.
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
@@ -87,27 +106,23 @@ class LighthouseBLEManager: NSObject,
         }
     }
 
-    /// Check wether a BT peripheral is an Lighthouse Base Station
+    /// Checks whether a Bluetooth peripheral is a Lighthouse Base Station V2
     ///
-    /// ```
-    /// Lighthouse Base Station / Lighthouse 2.0 devices name all
-    /// start with the prefix "LHB-" followed by 8 hex chars
-    /// ```
+    /// Lighthouse Base Stations V2 have names matching the pattern:
+    /// `LHB-XXXXXXXX`, where `XXXXXXXX` are 8 hexadecimal digits.
     ///
-    /// - Parameters:
-    ///     - peripheral: the BT peripheral to check
-    ///
-    /// - Returns: true if the peripheral is a Lighthouse Base Station
+    /// - Parameter peripheral: The peripheral to test.
+    /// - Returns: `true` if the device is a Lighthouse Base Station.
     func isLighthouseBaseStation(peripheral: CBPeripheral) -> Bool {
         let lighthouseBaseStationPattern = #"^LHB-[A-F0-9]{8}$"#
         return peripheral.name?.range(of: lighthouseBaseStationPattern,
                 options: .regularExpression) != nil
     }
 
-    // when a device/peripheral is found, this will be called
-    // if the peripheral is new, we check wether it'a Lighthouse
-    // Base Station before adding it to the var peripherals
-    // and the view will be updated (@Published)
+    /// Called when a peripheral is discovered during a scan.
+    ///
+    /// Filters for Lighthouse Base Stations, register them for later interactions,
+    /// avoids duplicates, and initiates connection.
     func centralManager(_ central: CBCentralManager,
             didDiscover peripheral: CBPeripheral,
             advertisementData: [String: Any],
@@ -133,13 +148,14 @@ class LighthouseBLEManager: NSObject,
             )
             devices.append(newLHBS)
             print("Discovered new Lighthouse Base Station: \(name)")
+            // connect to the lighthouse base station
             centralManager.connect(peripheral, options: nil)
         }
     }
 
-    // when connecting to a peripheral (Lighthouse Base Station) this will be called
-    // and we want to discover all services available.
-    // while here, update the matching device to "connected"
+    /// Called when a connection to a Lighthouse Base Station is established.
+    ///
+    /// Marks the device as connected and starts service discovery.
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "Unknown")")
 
@@ -152,8 +168,11 @@ class LighthouseBLEManager: NSObject,
         peripheral.delegate = self
     }
 
-    // when a service is discovered this will be called
-    // and we want to discover all characteristics of the service.
+    // MARK: - CBPeripheralDelegate
+
+    /// Called when services are discovered on a connected peripheral.
+    ///
+    /// Initiates characteristic discovery for each service.
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error = error {
             print("Error discovering services: \(error.localizedDescription)")
@@ -169,8 +188,9 @@ class LighthouseBLEManager: NSObject,
         }
     }
 
-    // when a service's characteristics are discovered this will be called
-    // and we want update the matching device and fill each service and it's characteristics
+    /// Called when characteristics are discovered for a given service.
+    ///
+    /// Stores expected characteristics and subscribes for updates.
     func peripheral(_ peripheral: CBPeripheral,
             didDiscoverCharacteristicsFor service: CBService,
             error: Error?) {
@@ -209,8 +229,9 @@ class LighthouseBLEManager: NSObject,
         }
     }
 
-    // this function will be called to read the value of service/characteristic "poweredOn"
-    // on our lighthouse base station
+    /// Called when a characteristic value is updated (notification or read).
+    ///
+    /// Updates the corresponding lighthouse state.
     func peripheral(_ peripheral: CBPeripheral,
             didUpdateValueFor characteristic: CBCharacteristic,
             error: Error?) {
@@ -239,6 +260,14 @@ class LighthouseBLEManager: NSObject,
         }
     }
 
+    // MARK: - Commands
+
+    /// Sets the power state of a Lighthouse Base Station.
+    ///
+    /// - Notes: the write need to be made in withResponse mode
+    /// - Parameters:
+    ///   - state: The desired power command (a ``LighthousePowerCommand``)
+    ///   - lighthouseBaseStation: The target base station.
     func setBaseStationPower(
             state: LighthousePowerCommand,
             lighthouseBaseStation: LighthouseBaseStation) {
@@ -249,10 +278,18 @@ class LighthouseBLEManager: NSObject,
         lighthouseBaseStation.peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
+    /// Triggers the identification mode on a Lighthouse Base Station.
+    ///
+    /// Sends a `0x01` value to the identify characteristic, causing the LED
+    /// to blink white for about 15–20 seconds.
+    ///
+    /// - Notes:
+    ///   - the write need to be made in withResponse mode
+    ///   - any value can be sent
+    ///   - this will switch the lighthouse base station to state `on`
+    /// - Parameter lighthouseBaseStation: The target base station to identify.
     func identifyLighthouseBaseStation(lighthouseBaseStation: LighthouseBaseStation) {
-        // Sending any value (here 0x01) to the identifyCharacteristic will set the lighthouse into
-        // identify mode where the led will blink white for a 15-20 seconds
-        // The request has to be made withResponse
+        // make sure identifyCharacteristic has been discovered on the lighthouseBaseStation
         guard let characteristic = lighthouseBaseStation.identifyCharacteristic else { return }
         lighthouseBaseStation.peripheral.writeValue(Data([0x01]),
                 for: characteristic,
