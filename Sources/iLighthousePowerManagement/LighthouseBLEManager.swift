@@ -241,7 +241,7 @@ class LighthouseBLEManager: NSObject,
 
     func setBaseStationPower(
             state: LighthousePowerCommand,
-            lighthouseBaseStation: LighthouseBaseStation)
+            lighthouseBaseStation: LighthouseBaseStation) {
         let data = Data([state.rawValue])
 
         // make sure powerStateCharacteristic has been discovered on the lighthouseBaseStation
