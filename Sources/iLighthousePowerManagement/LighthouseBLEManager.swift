@@ -220,8 +220,6 @@ class LighthouseBLEManager: NSObject,
                     peripheral.readValue(for: characteristic)
                 case identifyCharacteristicUUID:
                     devices[index].identifyCharacteristic = characteristic
-                    peripheral.setNotifyValue(true, for: characteristic)
-                    peripheral.readValue(for: characteristic)
                 default:
                     break
                 }
