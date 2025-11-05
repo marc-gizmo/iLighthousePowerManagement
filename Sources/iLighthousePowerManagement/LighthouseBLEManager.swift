@@ -248,4 +248,14 @@ class LighthouseBLEManager: NSObject,
         guard let characteristic = lighthouseBaseStation.powerStateCharacteristic else { return }
         lighthouseBaseStation.peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
+
+    func identifyLighthouseBaseStation(lighthouseBaseStation: LighthouseBaseStation) {
+        // Sending any value (here 0x01) to the identifyCharacteristic will set the lighthouse into
+        // identify mode where the led will blink white for a 15-20 seconds
+        // The request has to be made withResponse
+        guard let characteristic = lighthouseBaseStation.identifyCharacteristic else { return }
+        lighthouseBaseStation.peripheral.writeValue(Data([0x01]),
+                for: characteristic,
+                type: .withResponse)
+    }
 }

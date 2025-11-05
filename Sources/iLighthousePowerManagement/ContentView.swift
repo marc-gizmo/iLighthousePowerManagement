@@ -84,25 +84,36 @@ struct DeviceRow: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                HStack(spacing: 20) {
-                    Button("Lighthouse On", action: {
-                        lighthouseBLEManager.setBaseStationPower(state: .on,
-                            lighthouseBaseStation: device)
-                    })
-                    .foregroundColor(.green)
-                    .buttonStyle(.bordered)
-                    Button("Lighthouse Off", action: {
-                        lighthouseBLEManager.setBaseStationPower(state: .sleep,
-                            lighthouseBaseStation: device)
-                    })
-                    .foregroundColor(.red)
-                    .buttonStyle(.bordered)
-                                        Button("Lighthouse standby", action: {
-                        lighthouseBLEManager.setBaseStationPower(state: .standby,
-                            lighthouseBaseStation: device)
-                    })
-                    .foregroundColor(.orange)
-                    .buttonStyle(.bordered)
+                VStack(spacing: 20) {
+                    HStack(spacing: 20) {
+                        Button("Lighthouse On", action: {
+                            lighthouseBLEManager.setBaseStationPower(state: .on,
+                                    lighthouseBaseStation: device)
+                        })
+                        .foregroundColor(.green)
+                        .buttonStyle(.bordered)
+                        Button("Lighthouse Off", action: {
+                            lighthouseBLEManager.setBaseStationPower(state: .sleep,
+                                    lighthouseBaseStation: device)
+                        })
+                        .foregroundColor(.red)
+                        .buttonStyle(.bordered)
+                    }
+
+                    HStack(spacing: 20) {
+                        Button("Identify Lighthouse", action: {
+                            lighthouseBLEManager.identifyLighthouseBaseStation(
+                                    lighthouseBaseStation: device)
+                        })
+                        .foregroundColor(.teal)
+                        .buttonStyle(.bordered)
+                        Button("Lighthouse standby", action: {
+                            lighthouseBLEManager.setBaseStationPower(state: .standby,
+                                    lighthouseBaseStation: device)
+                        })
+                        .foregroundColor(.orange)
+                        .buttonStyle(.bordered)
+                    }
                 }
 
                 if let manufacturerData = device.advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
