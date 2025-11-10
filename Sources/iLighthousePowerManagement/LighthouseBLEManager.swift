@@ -7,7 +7,6 @@ struct LighthouseBaseStation: Identifiable {
     let id = UUID()
     let peripheral: CBPeripheral
     let name: String
-    let advertisementData: [String: Any]
     let rssi: NSNumber
     var connected: Bool = false
     var powerStateCharacteristic: CBCharacteristic?
@@ -147,7 +146,6 @@ class LighthouseBLEManager: NSObject,
             let newLHBS = LighthouseBaseStation(
                 peripheral: peripheral,
                 name: name,
-                advertisementData: advertisementData,
                 rssi: RSSI
             )
             devices.append(newLHBS)

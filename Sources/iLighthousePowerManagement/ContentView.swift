@@ -121,45 +121,6 @@ struct DeviceRow: View {
                         .buttonStyle(.bordered)
                     }
                 }
-
-                if let manufacturerData = device.advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
-                    Text("Manufacturer Data: \(manufacturerData.map { String(format: "%02x", $0) }.joined())")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                if let serviceUUIDs = device.advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-                    Text("Services: \(serviceUUIDs.map { $0.uuidString }.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                }
-
-                Section(header: Text("advertisementData:")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)) {
-                    ForEach(device.advertisementData.keys.sorted(), id: \.self) { key in
-                        Text("  \(key): \(String(describing: device.advertisementData[key]!))")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                    }
-                }
-
-                ForEach(device.services, id: \.uuid) { service in
-                    Section(header: Text("Service: \(service.uuid.uuidString)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)) {
-                        ForEach(service.characteristics ?? [], id: \.uuid) { characteristic in
-                            Text("    Characteristic: \(characteristic.uuid.uuidString)")
-                                .font(.caption2)
-                                .foregroundColor(.blue)
-                                .lineLimit(1)
-                        }
-                    }
-                }
             }
             .padding(.vertical, 4)
     }
