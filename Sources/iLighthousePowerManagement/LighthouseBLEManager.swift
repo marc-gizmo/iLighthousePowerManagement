@@ -86,6 +86,8 @@ class LighthouseBLEManager: NSObject,
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
+        DebugLog.shared.log("LighthouseBLEManager initialized", level: .debug)
+        DebugLog.shared.setMinimumLevel(level: .info)
     }
 
     // MARK: - CBCentralManagerDelegate
@@ -95,14 +97,14 @@ class LighthouseBLEManager: NSObject,
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            print("Bluetooth is ON — starting scan")
+            DebugLog.shared.log("Bluetooth is ON — starting scan", level: .info)
             centralManager.scanForPeripherals(withServices: nil, options: nil)
         case .poweredOff:
-            print("Bluetooth is OFF")
+            DebugLog.shared.log("Bluetooth is OFF", level: .error)
         case .unsupported:
-            print("Bluetooth unsupported on this device")
+            DebugLog.shared.log("Bluetooth unsupported on this device", level: .error)
         default:
-            print("Bluetooth state: \(central.state.rawValue)")
+            DebugLog.shared.log("Bluetooth state: \(central.state.rawValue)", level: .error)
         }
     }
 
@@ -129,7 +131,9 @@ class LighthouseBLEManager: NSObject,
             rssi RSSI: NSNumber) {
         // ignore everything but Lighthouse Base Station
         guard isLighthouseBaseStation(peripheral: peripheral) else {
-            print("Peripheral: \(peripheral.name ?? "Unknown") was not a Lighthouse Base Station")
+            DebugLog.shared.log(
+                "Peripheral: \(peripheral.name ?? "Unknown") was not a Lighthouse Base Station",
+                level: .debug)
             return
         }
 
@@ -147,7 +151,7 @@ class LighthouseBLEManager: NSObject,
                 rssi: RSSI
             )
             devices.append(newLHBS)
-            print("Discovered new Lighthouse Base Station: \(name)")
+            DebugLog.shared.log("Discovered new Lighthouse Base Station: \(name)", level: .debug)
             // connect to the lighthouse base station
             centralManager.connect(peripheral, options: nil)
         }
@@ -157,7 +161,7 @@ class LighthouseBLEManager: NSObject,
     ///
     /// Marks the device as connected and starts service discovery.
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected to \(peripheral.name ?? "Unknown")")
+        DebugLog.shared.log("Connected to \(peripheral.name ?? "Unknown")")
 
         if let index = devices.firstIndex(
                 where: { $0.peripheral.identifier == peripheral.identifier }) {
@@ -175,14 +179,16 @@ class LighthouseBLEManager: NSObject,
     /// Initiates characteristic discovery for each service.
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error = error {
-            print("Error discovering services: \(error.localizedDescription)")
+            DebugLog.shared.log(
+                "Error discovering services: \(error.localizedDescription)",
+                level: .error)
             return
         }
 
         guard let services = peripheral.services else { return }
 
         for service in services {
-            print("Discovered service: \(service.uuid)")
+            DebugLog.shared.log("Discovered service: \(service.uuid)", level: .debug)
             // Trigger characteristics discovery for each service
             peripheral.discoverCharacteristics(nil, for: service)
         }
@@ -195,7 +201,9 @@ class LighthouseBLEManager: NSObject,
             didDiscoverCharacteristicsFor service: CBService,
             error: Error?) {
         if let error = error {
-            print("Error discovering characteristics: \(error.localizedDescription)")
+            DebugLog.shared.log(
+                "Error discovering characteristics: \(error.localizedDescription)",
+                level: .error)
             return
         }
 
@@ -237,7 +245,9 @@ class LighthouseBLEManager: NSObject,
         case poweredOnCharacteristicUUID:
             if let data = characteristic.value {
                 let rawPowerState = data[0]
-                print(String(format: "Lighthouse Base Station power status: 0x%02X", rawPowerState))
+                DebugLog.shared.log(
+                    String(format: "Lighthouse Base Station power status: 0x%02X", rawPowerState),
+                    level: .debug)
                 if let index = devices.firstIndex(
                         where: { $0.peripheral.identifier == peripheral.identifier }) {
                     devices[index].rawPowerState = rawPowerState
@@ -247,7 +257,9 @@ class LighthouseBLEManager: NSObject,
         case channelCharacteristicUUID:
             if let data = characteristic.value {
                 let rawChannel = data[0]
-                print(String(format: "Lighthouse Base Station channel: 0x%02X", rawChannel))
+                DebugLog.shared.log(
+                    String(format: "Lighthouse Base Station channel: 0x%02X", rawChannel),
+                    level: .debug)
                 if let index = devices.firstIndex(
                         where: { $0.peripheral.identifier == peripheral.identifier }) {
                     devices[index].rawChannel = rawChannel

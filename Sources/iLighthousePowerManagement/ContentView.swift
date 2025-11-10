@@ -7,20 +7,26 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
-            List(lighthouseBLEManager.devices) { device in
-                DeviceRow(lighthouseBLEManager: lighthouseBLEManager, device: device)
+            VStack(alignment: .leading) {
+                List(lighthouseBLEManager.devices) { device in
+                    DeviceRow(lighthouseBLEManager: lighthouseBLEManager, device: device)
+                }
+                .navigationTitle("Nearby Lighthouse Base Stations")
+                .navigationBarTitleDisplayMode(.inline)
+                #if DEBUG
+                DebugOverlay()
+                    .frame(maxHeight: UIScreen.main.bounds.height * 0.2)
+                #endif
             }
-            .navigationTitle("Nearby Lighthouse Base Stations")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
 
-
 struct DeviceRow: View {
     let lighthouseBLEManager: LighthouseBLEManager
     let device: LighthouseBaseStation
-    @State private var isVisible = true
+    @State private var isVisible: Bool = true
+    @ObservedObject var logger: DebugLog = DebugLog.shared
 
     var body: some View {
         VStack(alignment: .leading) {
