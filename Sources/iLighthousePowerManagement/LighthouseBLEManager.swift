@@ -89,6 +89,73 @@ class LighthouseBLEManager: NSObject,
         DebugLog.shared.setMinimumLevel(level: .info)
     }
 
+    // MARK: - Connection/Disconnection
+    /// Connect to a lighthouse base station
+    func connect(lighthouseBaseStation: LighthouseBaseStation) {
+        guard !lighthouseBaseStation.connected else {
+            DebugLog.shared.log("Already connected to \(lighthouseBaseStation.name)",
+                level: .error)
+            return
+        }
+        DebugLog.shared.log("Connecting to \(lighthouseBaseStation.name)...",
+            level: .debug)
+        centralManager.connect(lighthouseBaseStation.peripheral, options: nil)
+    }
+
+    /// Disconnect from a lighthouseBaseStation
+    func disconnect(lighthouseBaseStation: LighthouseBaseStation) {
+        guard lighthouseBaseStation.connected else {
+            DebugLog.shared.log(
+                "Already disconnected from \(lighthouseBaseStation.name)",
+                level: .error)
+            return
+        }
+        DebugLog.shared.log("Disconnecting from \(lighthouseBaseStation.name)...",
+            level: .debug)
+        centralManager.cancelPeripheralConnection(lighthouseBaseStation.peripheral)
+    }
+
+    /// Called when the lighthouseBaseStation is disconnected
+    /// Update it's connection status
+    func centralManager(_ central: CBCentralManager,
+            didDisconnectPeripheral peripheral: CBPeripheral,
+            error: Error?) {
+        DebugLog.shared.log("Disconnected from \(peripheral.name ?? "unknown")")
+
+        if let error = error {
+            DebugLog.shared.log("Disconnection error: \(error.localizedDescription)",
+                level: .error)
+        }
+        if let index = devices.firstIndex(
+            where: { $0.peripheral.identifier == peripheral.identifier }) {
+                devices[index].connected = false
+        } else {
+            DebugLog.shared.log(
+                "Warning: Disconnected peripheral not found in devices list",
+                level: .warning)
+        }
+    }
+
+    /// Stop scanning and disconnect from all connected lighthouse base stations
+    func disconnectAll() {
+        DebugLog.shared.log("Stopped scanning. Disconnecting from all devices...",
+            level: .debug)
+        centralManager.stopScan()
+        for device in devices where device.connected {
+            disconnect(lighthouseBaseStation: device)
+        }
+    }
+
+    /// Starts scanning and attempts to reconnect to all known lighthouse base stations
+    func reconnectAll() {
+        DebugLog.shared.log("Resuming scan and attempting to reconnect to known devices...",
+            level: .debug)
+        centralManager.scanForPeripherals(withServices: nil, options: nil)
+        for device in devices {
+            connect(lighthouseBaseStation: device)
+        }
+    }
+
     // MARK: - CBCentralManagerDelegate
     /// Called when the Bluetooth central manager state changes
     ///

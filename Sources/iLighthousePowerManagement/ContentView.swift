@@ -4,6 +4,7 @@ import CoreBluetooth
 struct ContentView: View {
     // this will enable the BT Manager in background.
     @StateObject var lighthouseBLEManager: LighthouseBLEManager = LighthouseBLEManager()
+    @Environment(\.scenePhase) var scenePhase
 
     var body: some View {
         NavigationView {
@@ -19,6 +20,17 @@ struct ContentView: View {
                 #endif
             }
         }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+                if newPhase == .active {
+                    DebugLog.shared.log("App switch to Active")
+                    lighthouseBLEManager.reconnectAll()
+                } else if newPhase == .inactive {
+                    DebugLog.shared.log("App switch to Inactive")
+                } else if newPhase == .background {
+                    DebugLog.shared.log("App switch to Background")
+                    lighthouseBLEManager.disconnectAll()
+                }
+            }
     }
 }
 
