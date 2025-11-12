@@ -80,6 +80,11 @@ final class DebugLog: ObservableObject, @unchecked Sendable {
 
 struct DebugOverlay: View {
     @ObservedObject var logger: DebugLog = .shared
+    private let dateFormatter: DateFormatter = {
+        let formatter: DateFormatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
 
     private var filteredMessages: [DebugLog.Entry] {
         logger.messages.filter {
@@ -91,7 +96,8 @@ struct DebugOverlay: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(filteredMessages) { entry in
-                    Text("\(entry.level.prefix) \(entry.message)")
+
+                    Text("\(entry.level.prefix) \(entry.timestamp, formatter: dateFormatter) \(entry.message)")
                         .font(.caption2)
                         .foregroundColor(entry.level.color)
                         .frame(maxWidth: .infinity, alignment: .leading)
