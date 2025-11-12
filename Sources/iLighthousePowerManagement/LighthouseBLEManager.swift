@@ -156,6 +156,20 @@ class LighthouseBLEManager: NSObject,
         }
     }
 
+    /// Remove a disconnected lighthouseBaseStation from LighthouseBLEManager
+    func removeLighthouse(lighthouseBaseStation: LighthouseBaseStation) {
+        guard !lighthouseBaseStation.connected else {
+            DebugLog.shared.log(
+                "Can't remove \(lighthouseBaseStation.name) (still connected)",
+                level: .error)
+            return
+        }
+        devices.removeAll { $0.id == lighthouseBaseStation.id }
+        DebugLog.shared.log(
+            "\(lighthouseBaseStation.name) removed from LighthouseBLEManager",
+            level: .info)
+    }
+
     // MARK: - CBCentralManagerDelegate
     /// Called when the Bluetooth central manager state changes
     ///

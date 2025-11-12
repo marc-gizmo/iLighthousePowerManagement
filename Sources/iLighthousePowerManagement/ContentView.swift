@@ -1,5 +1,6 @@
-import SwiftUI
+import Combine
 import CoreBluetooth
+import SwiftUI
 
 struct ContentView: View {
     // this will enable the BT Manager in background.
@@ -21,26 +22,58 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-                if newPhase == .active {
-                    DebugLog.shared.log("App switch to Active")
-                    lighthouseBLEManager.reconnectAll()
-                } else if newPhase == .inactive {
-                    DebugLog.shared.log("App switch to Inactive")
-                } else if newPhase == .background {
-                    DebugLog.shared.log("App switch to Background")
-                    lighthouseBLEManager.disconnectAll()
-                }
+            if newPhase == .active {
+                DebugLog.shared.log("App switch to Active", level: .debug)
+                lighthouseBLEManager.reconnectAll()
+            } else if newPhase == .inactive {
+                DebugLog.shared.log("App switch to Inactive", level: .debug)
+            } else if newPhase == .background {
+                DebugLog.shared.log("App switch to Background", level: .debug)
+                lighthouseBLEManager.disconnectAll()
             }
+        }
     }
 }
 
+/// A view displaying a single Lighthouse base station and providing controls for it.
+///
+/// `LighthouseRow` presents information about one detected `LighthouseBaseStation`, such as:
+/// - Connection status
+/// - Power state and raw power value
+/// - Communication channel and signal strength (RSSI)
+///
+/// It also offers interactive controls to:
+/// - Power the lighthouse **on**, **off**, or put it into **standby**
+/// - Trigger **identify** mode for locating a specific unit
+///
+/// The view manages its own **lifecycle and cleanup timer**:
+/// - When a device disconnects, a reconnection attempt is made and a 30-second timer starts.
+/// - If the timer expires without reconnection, the device is removed from tracking.
+/// - Timers are automatically paused when the app moves to the background, and resumed when active again.
+///
+/// The UI also includes a subtle animation when the device is in the `booting` power state.
+///
+/// Example:
+/// ```swift
+/// List(lighthouseBLEManager.devices) { device in
+///     LighthouseRow(lighthouseBLEManager: lighthouseBLEManager, device: device)
+/// }
+/// ```
+///
+/// - Note: This view only handles UI-level lifecycle and animation.
+///         Application-wide Bluetooth connection management is delegated to `LighthouseBLEManager`.
+///
+/// - SeeAlso: `LighthouseBLEManager`, `LighthouseBaseStation`, `LighthousePowerCommand`
 struct LighthouseRow: View {
     // MARK: - Properties
     let lighthouseBLEManager: LighthouseBLEManager
     let device: LighthouseBaseStation
+    @Environment(\.scenePhase) var scenePhase
 
     // State
     @State private var isVisible: Bool = true
+    @State private var timer = Timer.publish(every: 30.0, on: .main, in: .common)
+    @State private var timerControl: Cancellable?
 
     // Logger
     @ObservedObject var logger: DebugLog = DebugLog.shared
@@ -55,6 +88,9 @@ struct LighthouseRow: View {
             controlSection
         }
         .padding(.vertical, 4)
+        .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
+        .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
+        .onReceive(timer) { _ in handleTimerExpired() }
     }
 
     // MARK: - UI Sections
@@ -71,7 +107,9 @@ struct LighthouseRow: View {
 
     private var powerStateSection: some View {
         Text(device.rawPowerState != nil
-            ? String(format: "Power State: \(device.lighthousePowerState.name) → 0x%02X", device.rawPowerState!)
+            ? String(
+                format: "Power State: \(device.lighthousePowerState.name) → 0x%02X",
+                device.rawPowerState!)
             : String(format: "Power State: \(device.lighthousePowerState.name)"))
             .font(.subheadline)
             .foregroundColor(powerStateColor)
@@ -114,7 +152,10 @@ struct LighthouseRow: View {
     }
 
     // MARK: - UI Helpers
-    private func powerButton(_ title: String, color: Color, state: LighthousePowerCommand) -> some View {
+    private func powerButton(
+            _ title: String,
+            color: Color,
+            state: LighthousePowerCommand) -> some View {
         Button(title) {
             lighthouseBLEManager.setBaseStationPower(state: state, lighthouseBaseStation: device)
         }
@@ -145,5 +186,68 @@ struct LighthouseRow: View {
                 isVisible = true
             }
         }
+    }
+
+    // MARK: - Events Handlers
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        switch newPhase {
+        case .background:
+            if timerControl != nil {
+                DebugLog.shared.log(
+                    "App is in background, stop active timers",
+                    level: .info)
+                cancelTimer()
+            }
+        case .active:
+            if !device.connected {
+                DebugLog.shared.log(
+                    "Trigger Lighthouse \(device.name) timer for eventual cleanup",
+                    level: .info)
+                restartTimer()
+            }
+        default:
+            break
+        }
+    }
+
+    private func handleConnectionChange(_ lighthouseConnected: Bool) {
+        guard scenePhase == .active else { return }
+        if lighthouseConnected {
+            DebugLog.shared.log(
+                "Lighthouse \(device.name) (re-)connected",
+                level: .debug)
+            cancelTimer()
+        } else {
+            DebugLog.shared.log(
+                "Lighthouse \(device.name) disconnected, try reconnection ...",
+                level: .info)
+            // try to reconnect the lighthouse base station but start a timer
+            // to remove/untrack the lighthouse if reconnection fail.
+            lighthouseBLEManager.connect(lighthouseBaseStation: device)
+            restartTimer()
+        }
+    }
+
+    private func handleTimerExpired() {
+        cancelTimer()
+        // if the timer expire and the lighthouse is still not connected
+        // remove/untrack it
+        if !device.connected {
+            lighthouseBLEManager.removeLighthouse(lighthouseBaseStation: device)
+            DebugLog.shared.log("Lighthouse \(device.name) lost and untracked")
+        }
+    }
+
+    // MARK: - Timer Helpers
+    private func restartTimer() {
+        cancelTimer()
+        // we need to reassign the timer publisher
+        timer = Timer.publish(every: 30.0, on: .main, in: .common)
+        timerControl = timer.connect()
+    }
+
+    private func cancelTimer() {
+        timerControl?.cancel()
+        timerControl = nil
     }
 }
