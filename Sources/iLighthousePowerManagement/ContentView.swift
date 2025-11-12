@@ -112,7 +112,7 @@ struct LighthouseRow: View {
     private var powerStateSection: some View {
         Text(device.rawPowerState != nil
             ? String(
-                format: "Power State: \(device.lighthousePowerState.name) → 0x%02X",
+                format: "Power State: \(device.lighthousePowerState.name)",
                 device.rawPowerState!)
             : String(format: "Power State: \(device.lighthousePowerState.name)"))
             .font(.subheadline)
@@ -125,7 +125,7 @@ struct LighthouseRow: View {
     private var channelAndRSSISection: some View {
         VStack(alignment: .leading, spacing: 2) {
             if let rawChannel: UInt8 = device.rawChannel {
-                Text(String(format: "Channel: %d (0x%02X)", rawChannel, rawChannel))
+                Text(String(format: "Channel: %d", rawChannel))
                     .font(.subheadline)
                     .foregroundColor(.blue)
             }
