@@ -71,7 +71,9 @@ struct LighthouseRow: View {
     @Environment(\.scenePhase) var scenePhase
 
     // State
-    @State private var isVisible: Bool = true
+    @State private var isBootingVisible: Bool = true
+    @State private var lostLighthouse: Bool = false
+    @State private var blinkingOpacity: Double = 1.0
     @State private var timer = Timer.publish(every: 30.0, on: .main, in: .common)
     @State private var timerControl: Cancellable?
 
@@ -88,9 +90,11 @@ struct LighthouseRow: View {
             controlSection
         }
         .padding(.vertical, 4)
+        .opacity(lostLighthouseOpacity)
         .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
         .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
         .onReceive(timer) { _ in handleTimerExpired() }
+        .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
     }
 
     // MARK: - UI Sections
@@ -172,18 +176,37 @@ struct LighthouseRow: View {
     }
 
     private var bootingOpacity: Double {
-        device.lighthousePowerState == .booting ? (isVisible ? 1 : 0.3) : 1
+        device.lighthousePowerState == .booting ? (isBootingVisible ? 1 : 0.3) : 1
+    }
+
+    private var lostLighthouseOpacity: Double {
+        lostLighthouse ? blinkingOpacity : 1.0
     }
 
     // MARK: - Animations
+    private func lostAnimation() {
+        if lostLighthouse {
+            // Start the continuous blinking animation by toggling blinkingOpacity
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                // Toggle the opacity between 1.0 (fully visible) and 0.2 (faded)
+                blinkingOpacity = 0.2
+            }
+        } else {
+            // Stop the animation and reset opacity to fully visible
+            withAnimation(.easeInOut(duration: 0.2)) {
+                blinkingOpacity = 1.0
+            }
+        }
+    }
+
     private func animateIfNeeded() {
         if device.lighthousePowerState == .booting {
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                isVisible.toggle()
+                isBootingVisible.toggle()
             }
         } else {
             withAnimation(.easeInOut(duration: 0.2)) {
-                isVisible = true
+                isBootingVisible = true
             }
         }
     }
@@ -233,8 +256,26 @@ struct LighthouseRow: View {
         // if the timer expire and the lighthouse is still not connected
         // remove/untrack it
         if !device.connected {
-            lighthouseBLEManager.removeLighthouse(lighthouseBaseStation: device)
-            DebugLog.shared.log("Lighthouse \(device.name) lost and untracked")
+            // Trigger the fade-out animation by setting a final, non-blinking state
+            // and setting the row to be fully transparent over 1 second.
+            withAnimation(.easeOut(duration: 1.0)) { // 1.0 second fade-out animation
+                lostLighthouse = true // Re-use lostLighthouse to trigger the opacity path
+                blinkingOpacity = 0.0 // Set final target opacity to zero (fully transparent)
+            }
+
+            // Schedule the actual removal (suppression) to happen *after* the animation is done.
+            // We use DispatchQueue.main.asyncAfter to wait 1.0 + 0.1 seconds.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                // Check again just in case the device reconnected during the animation time
+                if !device.connected {
+                    lighthouseBLEManager.removeLighthouse(lighthouseBaseStation: device)
+                    DebugLog.shared.log("Lighthouse \(device.name) lost and untracked (after fade-out)")
+                } else {
+                    // If it connected just before removal, reset opacity
+                    lostLighthouse = false
+                    blinkingOpacity = 1.0
+                }
+            }
         }
     }
 
@@ -244,10 +285,12 @@ struct LighthouseRow: View {
         // we need to reassign the timer publisher
         timer = Timer.publish(every: 30.0, on: .main, in: .common)
         timerControl = timer.connect()
+        lostLighthouse = true
     }
 
     private func cancelTimer() {
         timerControl?.cancel()
         timerControl = nil
+        lostLighthouse = false
     }
 }
