@@ -2,6 +2,46 @@ import Combine
 import CoreBluetooth
 import SwiftUI
 
+// MARK: - Helper to load images from SwiftPM
+/// autloading of SwiftPM images, despite being bundled in the
+/// app does not seem to work with xtool
+/// This initializer provides a robust manual lookup.
+public extension Image {
+    /// Load an image from this Swift Package's bundle.
+    ///
+    /// This custom initializer manually constructs the file path using
+    /// `Bundle.module` to reliably load resources that are placed in subfolders.
+    ///
+    /// - parameter:
+    ///     - name: The base name of the image file (e.g., "BaseStation"),
+    ///             excluding the extension. The subfolder path ("Images") is
+    ///             not needed
+    ///     - ext: The file extension (e.g., "png"). Defaults to "png".
+    init(packageName name: String, ext: String = "png") {
+        if let path = Bundle.module.path(forResource: name, ofType: ext),
+           let uiImage = UIImage(contentsOfFile: path) {
+            self = Image(uiImage: uiImage)
+        } else {
+            self = Image(systemName: "xmark.circle")
+        }
+    }
+
+    /// Optional shorthand that matches SwiftUI style
+    ///
+    /// - parameter:
+    ///     - name: The base name of the image file.
+    ///     - fromPackage: If `true`, loads the image using the package resource bundle;
+    ///         otherwise, uses the standard SwiftUI initializer.
+    init(_ name: String, fromPackage: Bool) {
+        if fromPackage {
+            self.init(packageName: name)
+        } else {
+            // Fall back to standard SwiftUI initializer
+            self.init(name)
+        }
+    }
+}
+
 struct ContentView: View {
     // this will enable the BT Manager in background.
     @StateObject var lighthouseBLEManager: LighthouseBLEManager = LighthouseBLEManager()
@@ -82,19 +122,25 @@ struct LighthouseRow: View {
 
     // MARK: - Body
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            headerSection
-            connectedSection
-            powerStateSection
-            channelAndRSSISection
-            controlSection
+        HStack() {
+            Image("BaseStation", fromPackage: true)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+            VStack(alignment: .leading, spacing: 4) {
+                headerSection
+                connectedSection
+                powerStateSection
+                channelAndRSSISection
+                controlSection
+            }
+            .padding(.vertical, 4)
+            .opacity(lostLighthouseOpacity)
+            .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
+            .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
+            .onReceive(timer) { _ in handleTimerExpired() }
+            .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
         }
-        .padding(.vertical, 4)
-        .opacity(lostLighthouseOpacity)
-        .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
-        .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
-        .onReceive(timer) { _ in handleTimerExpired() }
-        .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
     }
 
     // MARK: - UI Sections
@@ -269,7 +315,8 @@ struct LighthouseRow: View {
                 // Check again just in case the device reconnected during the animation time
                 if !device.connected {
                     lighthouseBLEManager.removeLighthouse(lighthouseBaseStation: device)
-                    DebugLog.shared.log("Lighthouse \(device.name) lost and untracked (after fade-out)")
+                    DebugLog.shared.log(
+                        "Lighthouse \(device.name) lost and untracked (after fade-out)")
                 } else {
                     // If it connected just before removal, reset opacity
                     lostLighthouse = false
