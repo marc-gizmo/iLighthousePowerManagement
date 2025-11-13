@@ -119,17 +119,15 @@ struct LighthouseRow: View {
     @State private var blinkingOpacity: Double = 1.0
     @State private var timer = Timer.publish(every: 30.0, on: .main, in: .common)
     @State private var timerControl: Cancellable?
+    @State private var isIdentifying = false
 
     // Logger
     @ObservedObject var logger: DebugLog = DebugLog.shared
 
     // MARK: - Body
     var body: some View {
-        HStack() {
-            Image("BaseStation", fromPackage: true)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 100, height: 100)
+        HStack {
+            LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
             VStack(alignment: .leading, spacing: 4) {
                 headerSection
                 connectedSection
@@ -172,15 +170,16 @@ struct LighthouseRow: View {
     }
 
     private var channelAndRSSISection: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 20) {
+            Text("RSSI: \(device.rssi)")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             if let rawChannel: UInt8 = device.rawChannel {
                 Text(String(format: "Channel: %d", rawChannel))
                     .font(.subheadline)
                     .foregroundColor(.blue)
             }
-            Text("RSSI: \(device.rssi)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+
         }
     }
 
@@ -195,6 +194,12 @@ struct LighthouseRow: View {
                 Button("Identify   ", action: {
                     lighthouseBLEManager.identifyLighthouseBaseStation(
                             lighthouseBaseStation: device)
+                    /// tell LighthouseImageView to display identify blink
+                    /// for 20 seconds
+                    isIdentifying = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                        isIdentifying = false
+                    }
                 })
                 .foregroundColor(.teal)
                 .buttonStyle(.bordered)
@@ -342,5 +347,150 @@ struct LighthouseRow: View {
         timerControl?.cancel()
         timerControl = nil
         lostLighthouse = false
+    }
+}
+
+// MARK: - LighthouseImageView
+/// A SwiftUI view that displays the LED state of a Lighthouse base station.
+///
+/// The `LighthouseImageView` visually represents the current power or connection state
+/// of a Lighthouse device using different LED colors and animations.
+/// It also supports the "identify" mode that blinks the LED in white for visibility.
+struct LighthouseImageView: View {
+    // MARK: - Properties
+    /// The Lighthouse base station associated with this view.
+    let lighthouseBaseStation: LighthouseBaseStation
+
+    /// Indicates whether the base station is currently in "identify" mode.
+    ///
+    /// When set to `true`, the LED will blink white regardless of its normal state.
+    @Binding var isIdentifying: Bool
+
+    /// The current LED status of the Lighthouse device.
+    @State private var statusLED: LighthouseLEDStatus
+
+    @State private var statusLEDVisible = true
+    @State private var identifyLEDVisible = false
+    @State private var identifyTimer: Timer?
+
+    // MARK: - LighthouseLEDStatus
+    /// Represents the logical LED state of the Lighthouse base station.
+    ///
+    /// Each case corresponds to a visual color and blinking behavior.
+    enum LighthouseLEDStatus {
+        case sleep
+        case booting
+        case standby
+        case on
+        case disconnected
+
+        var imageName: String {
+            switch self {
+            case .sleep, .booting, .standby:
+                return "BaseStationLEDBlue"
+            case .on:
+                return "BaseStationLEDGreen"
+            case .disconnected:
+                return "BaseStationLEDOff"
+            }
+        }
+    }
+
+    // MARK: - Init
+    /// Creates a new LED view for the specified Lighthouse base station.
+    ///
+    /// - Parameters:
+    ///   - lighthouseBaseStation: The base station whose LED state is being represented.
+    ///   - isIdentifying: A binding that triggers a white "identify" blink when set to `true`.
+    init(lighthouseBaseStation: LighthouseBaseStation, isIdentifying: Binding<Bool>) {
+        self.lighthouseBaseStation = lighthouseBaseStation
+        _statusLED = State(initialValue: .disconnected)
+        self._isIdentifying = isIdentifying
+    }
+
+    // MARK: - Body
+    /// The main body of the view.
+    ///
+    /// Displays layered LED images with opacity and animation effects based on the device status.
+    var body: some View {
+        ZStack {
+            // Base "off" image
+            Image("BaseStationLEDOff", fromPackage: true)
+                .resizable()
+                .scaledToFit()
+
+            // Regular LED layer
+            Image(statusLED.imageName, fromPackage: true)
+                .resizable()
+                .scaledToFit()
+                .opacity(
+                    isIdentifying ? 0.0 :
+                        (statusLED == .booting ? (statusLEDVisible ? 1.0 : 0.0) : 1.0))
+
+            // Identify LED overlay
+            Image("BaseStationLEDWhite", fromPackage: true)
+                .resizable()
+                .scaledToFit()
+                .opacity(isIdentifying ? (identifyLEDVisible ? 0.0 : 1.0) : 0.0)
+        }
+        .frame(width: 100, height: 100)
+        .onChange(of: lighthouseBaseStation.lighthousePowerState) { _, newState in
+            updateLEDStatus(state: newState)
+        }
+        .onChange(of: isIdentifying) { _, isIdentifying in
+            if isIdentifying {
+                identifyBlink()
+            } else {
+                identifyTimer?.invalidate()
+            }
+        }
+    }
+
+    // MARK: - Status Logic
+    /// Updates the LED color and animation according to the given power state.
+    ///
+    /// - Parameter state: The current `LighthousePowerState` of the device.
+    private func updateLEDStatus(state: LighthousePowerState) {
+        switch state {
+        case .sleep:   statusLED = .sleep
+        case .booting: statusLED = .booting
+        case .standby: statusLED = .standby
+        case .on:      statusLED = .on
+        default:       statusLED = .disconnected
+        }
+        bootingBlink()
+    }
+
+    // MARK: - Blink Logic
+
+    /// Handles blinking animation for booting state.
+    ///
+    /// When the base station is booting, the LED will fade in and out repeatedly.
+    private func bootingBlink() {
+        if statusLED == .booting {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                statusLEDVisible.toggle()
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                statusLEDVisible = true
+            }
+        }
+    }
+
+    /// Starts the white "identify" blink animation.
+    ///
+    /// Called when the user activates the identify feature.
+    /// The blink alternates visibility every 0.4 seconds until stopped.
+    private func identifyBlink() {
+        identifyTimer?.invalidate()
+        identifyLEDVisible = true
+        identifyTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    identifyLEDVisible.toggle()
+                }
+            }
+        }
     }
 }
