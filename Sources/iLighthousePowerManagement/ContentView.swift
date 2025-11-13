@@ -170,16 +170,13 @@ struct LighthouseRow: View {
     }
 
     private var channelAndRSSISection: some View {
-        HStack(spacing: 20) {
-            Text("RSSI: \(device.rssi)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        HStack(spacing: 10) {
+            Image(systemName: "cellularbars", variableValue: signalLevel)
+                .foregroundStyle(.primary)
             if let rawChannel: UInt8 = device.rawChannel {
-                Text(String(format: "Channel: %d", rawChannel))
+                Text(String(format: "(Channel %d)", rawChannel))
                     .font(.subheadline)
-                    .foregroundColor(.blue)
             }
-
         }
     }
 
@@ -235,6 +232,17 @@ struct LighthouseRow: View {
 
     private var lostLighthouseOpacity: Double {
         lostLighthouse ? blinkingOpacity : 1.0
+    }
+
+    private var signalLevel: Double {
+        switch device.rssi.intValue {
+        case ..<(-90): return 0.0
+        case -90..<(-80): return 0.2
+        case -80..<(-70): return 0.4
+        case -70..<(-60): return 0.6
+        case -60..<(-50): return 0.8
+        default: return 1.0
+        }
     }
 
     // MARK: - Animations
