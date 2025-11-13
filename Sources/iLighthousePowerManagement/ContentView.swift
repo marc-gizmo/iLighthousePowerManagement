@@ -42,6 +42,7 @@ public extension Image {
     }
 }
 
+// MARK: - Main app View
 struct ContentView: View {
     // this will enable the BT Manager in background.
     @StateObject var lighthouseBLEManager: LighthouseBLEManager = LighthouseBLEManager()
@@ -74,6 +75,8 @@ struct ContentView: View {
         }
     }
 }
+
+// MARK: - LighthouseRow
 
 /// A view displaying a single Lighthouse base station and providing controls for it.
 ///
