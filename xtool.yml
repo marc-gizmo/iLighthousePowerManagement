@@ -1,4 +1,4 @@
 version: 1
 bundleID: com.gizmo.iLighthousePowerManagement
 infoPath: Info.plist
-iconPath: Resources/BaseStation.png
+iconPath: iLighthouseBaseStationIcon.png
