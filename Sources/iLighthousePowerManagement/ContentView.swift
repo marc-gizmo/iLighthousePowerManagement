@@ -128,24 +128,30 @@ struct LighthouseRow: View {
 
     // MARK: - Body
     var body: some View {
-        HStack {
-            LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
-            VStack(alignment: .leading, spacing: 4) {
+        VStack {
+            HStack {
                 headerSection
-                powerStateSection
-                channelAndRSSISection
-                LighthouseControlView(
-                    lighthouseBaseStation: device,
-                    lighthouseBLEManager: lighthouseBLEManager,
-                    isIdentifying: $isIdentifying
-                )
+                Spacer()
+                RSSISection
             }
-            .padding(.vertical, 4)
-            .opacity(lostLighthouseOpacity)
-            .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
-            .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
-            .onReceive(timer) { _ in handleTimerExpired() }
-            .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
+            HStack {
+                LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
+                VStack(alignment: .leading, spacing: 4) {
+                    powerStateSection
+                    channelSection
+                    LighthouseControlView(
+                        lighthouseBaseStation: device,
+                        lighthouseBLEManager: lighthouseBLEManager,
+                        isIdentifying: $isIdentifying
+                    )
+                }
+                .padding(.vertical, 4)
+                .opacity(lostLighthouseOpacity)
+                .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
+                .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
+                .onReceive(timer) { _ in handleTimerExpired() }
+                .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
+            }
         }
     }
 
@@ -168,15 +174,19 @@ struct LighthouseRow: View {
             .onChange(of: device.lighthousePowerState) { _, _ in animateIfNeeded() }
     }
 
-    private var channelAndRSSISection: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "cellularbars", variableValue: signalLevel)
-                .foregroundStyle(.primary)
+    private var channelSection: some View {
             if let rawChannel: UInt8 = device.rawChannel {
                 Text(String(format: "(Channel %d)", rawChannel))
                     .font(.subheadline)
+            } else {
+                Text(String(format: "(Channel   )"))
+                    .font(.subheadline)
             }
-        }
+    }
+
+    private var RSSISection: some View {
+            Image(systemName: "cellularbars", variableValue: signalLevel)
+                .foregroundStyle(.primary)
     }
 
     // MARK: - UI Helpers
