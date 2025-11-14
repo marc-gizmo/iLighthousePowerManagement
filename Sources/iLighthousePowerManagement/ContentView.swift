@@ -130,7 +130,6 @@ struct LighthouseRow: View {
             LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
             VStack(alignment: .leading, spacing: 4) {
                 headerSection
-                connectedSection
                 powerStateSection
                 channelAndRSSISection
                 controlSection
@@ -148,12 +147,6 @@ struct LighthouseRow: View {
     private var headerSection: some View {
         Text(device.name)
             .font(.headline)
-    }
-
-    private var connectedSection: some View {
-        Text("Connected: \(device.connected ? "Yes" : "No")")
-            .font(.subheadline)
-            .foregroundColor(device.connected ? Color.green : Color.red)
     }
 
     private var powerStateSection: some View {
