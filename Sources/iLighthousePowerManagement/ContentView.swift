@@ -42,6 +42,34 @@ public extension Image {
     }
 }
 
+// MARK: - Helper to invert color
+extension Color {
+    /// Returns a Color that is the inverse (complementary) of the original color,
+    /// by using the UIKit bridging method to calculate the opposite.
+    var inverted: Color {
+        // Convert to UIColor to leverage system color calculation logic
+        let uiColor = UIColor(self)
+
+        // Use a technique to calculate the complementary color
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        // Get HSB components
+        uiColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+
+        // Complementary color is shifted by 180 degrees (0.5)
+        let invertedHue = (hue + 0.5).truncatingRemainder(dividingBy: 1.0)
+
+        // Invert the brightness for better contrast in Light/Dark Mode
+        let invertedBrightness = 1.0 - brightness
+
+        // Return the new SwiftUI Color
+        return Color(hue: invertedHue, saturation: saturation, brightness: invertedBrightness, opacity: alpha)
+    }
+}
+
 // MARK: - Main app View
 struct ContentView: View {
     // this will enable the BT Manager in background.
@@ -122,6 +150,7 @@ struct LighthouseRow: View {
     @State private var timer = Timer.publish(every: 30.0, on: .main, in: .common)
     @State private var timerControl: Cancellable?
     @State private var isIdentifying = false
+    @State private var showingAdvancedControls = false
 
     // Logger
     @ObservedObject var logger: DebugLog = DebugLog.shared
@@ -131,36 +160,61 @@ struct LighthouseRow: View {
         VStack {
             HStack {
                 headerSection
+                powerStateSection
                 Spacer()
                 RSSISection
             }
-            HStack {
-                LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        powerStateSection
-                        Spacer()
-                        channelSection
+            VStack {
+                HStack {
+                    LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
+                    TabView(selection: $showingAdvancedControls) {
+                        HStack {
+                            Spacer()
+                            LighthouseControlView(
+                                lighthouseBaseStation: device,
+                                lighthouseBLEManager: lighthouseBLEManager,
+                            )
+                            Spacer()
+                            HStack {
+                                Image(systemName: "chevron.compact.left")
+                                    .resizable()
+                                    .frame(width: 20, height: 60)
+                                    .foregroundColor(Color(.systemFill))
+                                RoundedRectangle(cornerRadius: 4)
+                                    .frame(width: 8, height: 60)
+                                    .foregroundColor(Color(.systemFill))
+                            }
+                        }
+                        .tag(false)
+
+                        HStack {
+                            LighthouseAdvancedControlView(
+                                lighthouseBaseStation: device,
+                                lighthouseBLEManager: lighthouseBLEManager,
+                                isIdentifying: $isIdentifying
+                            )
+                            Spacer()
+                            HStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .frame(width: 8, height: 60)
+                                    .foregroundColor(Color(.systemFill))
+                                Image(systemName: "chevron.compact.right")
+                                    .resizable()
+                                    .frame(width: 20, height: 60)
+                                    .foregroundColor(Color(.systemFill))
+                            }
+                        }
+                        .tag(true)
                     }
-                    HStack(spacing: 10) {
-                        LighthouseControlView(
-                            lighthouseBaseStation: device,
-                            lighthouseBLEManager: lighthouseBLEManager,
-                        )
-                        LighthouseAdvancedControlView(
-                            lighthouseBaseStation: device,
-                            lighthouseBLEManager: lighthouseBLEManager,
-                            isIdentifying: $isIdentifying
-                        )
-                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never)) // ← removes dots
                 }
-                .padding(.vertical, 4)
-                .opacity(lostLighthouseOpacity)
-                .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
-                .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
-                .onReceive(timer) { _ in handleTimerExpired() }
-                .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
             }
+            .padding(.vertical, 4)
+            .opacity(lostLighthouseOpacity)
+            .onChange(of: scenePhase) {_, newPhase in handleScenePhaseChange(newPhase) }
+            .onChange(of: device.connected) {_, connected in handleConnectionChange(connected) }
+            .onReceive(timer) { _ in handleTimerExpired() }
+            .onChange(of: lostLighthouse) { _, _ in lostAnimation() }
         }
     }
 
@@ -171,37 +225,32 @@ struct LighthouseRow: View {
     }
 
     private var powerStateSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Status: ")
-            Text(device.rawPowerState != nil
-                ? String(
-                    format: "\(device.lighthousePowerState.name)",
-                    device.rawPowerState!)
-                : String(format: "\(device.lighthousePowerState.name)"))
-                .font(.subheadline)
-                .foregroundColor(powerStateColor)
-                .padding(.leading, 20) // ← consistent left spacing for line 2
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .opacity(bootingOpacity)
-                .onAppear(perform: animateIfNeeded)
-                .onChange(of: device.lighthousePowerState) { _, _ in animateIfNeeded() }
-        }
-    }
-
-    private var channelSection: some View {
-
-        if let rawChannel: UInt8 = device.rawChannel {
-            Text(String(format: "Chan. %d", rawChannel))
-                .font(.subheadline)
-        } else {
-            Text(String(format: "Chan. ..."))
-                .font(.subheadline)
-        }
+        Text(device.rawPowerState != nil
+            ? String(
+                format: "(\(device.lighthousePowerState.name))",
+                device.rawPowerState!)
+            : String(format: "(\(device.lighthousePowerState.name))"))
+            .font(.headline)
+            .foregroundColor(powerStateColor)
+            .opacity(bootingOpacity)
+            .onAppear(perform: animateIfNeeded)
+            .onChange(of: device.lighthousePowerState) { _, _ in animateIfNeeded() }
     }
 
     private var RSSISection: some View {
+        ZStack {
             Image(systemName: "cellularbars", variableValue: signalLevel)
                 .foregroundStyle(.primary)
+                .font(.system(size: 25))
+            if let channel: UInt8 = device.rawChannel {
+                Text(String(format: "%d", channel))
+                    .font(.subheadline)
+                    .bold()
+                    .shadow(color: .primary.inverted, radius: 1, x: 0, y: 0)
+                    .shadow(color: .primary.inverted, radius: 2, x: 0, y: 0)
+                    .shadow(color: .primary.inverted, radius: 4, x: 0, y: 0)
+                }
+        }
     }
 
     // MARK: - UI Helpers
@@ -554,7 +603,7 @@ struct LighthouseControlView: View {
         return ZStack {
             Circle()
                 .fill(Color(.systemFill))
-                .frame(width: 65, height: 65)
+                .frame(width: 70, height: 70)
             Image(systemName: icon)
             .resizable()
             .scaledToFit()
@@ -600,7 +649,7 @@ struct LighthouseAdvancedControlView: View {
     ///
     /// Displays layered LED images with opacity and animation effects based on the device status.
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 20) {
             identifyButton()
             standbyButton()
         }
@@ -611,12 +660,12 @@ struct LighthouseAdvancedControlView: View {
         ZStack {
             Circle()
                 .fill(Color(.systemFill))
-                .frame(width: 65, height: 65)
+                .frame(width: 70, height: 70)
             Image(systemName: "eye")
                 .resizable()
                 .scaledToFit()
                 .foregroundColor(.teal)
-                .frame(width: 45, height: 45)
+                .frame(width: 55, height: 55)
                 .onTapGesture {
                     lighthouseBLEManager.identifyLighthouseBaseStation(
                         lighthouseBaseStation: lighthouseBaseStation)
@@ -634,12 +683,12 @@ struct LighthouseAdvancedControlView: View {
         ZStack {
             Circle()
                 .fill(Color(.systemFill))
-                .frame(width: 65, height: 65)
+                .frame(width: 70, height: 70)
             Image(systemName: "power")
                 .resizable()
                 .scaledToFit()
                 .foregroundColor(.orange)
-                .frame(width: 45, height: 45)
+                .frame(width: 55, height: 55)
                 .onTapGesture {
                     lighthouseBLEManager.setBaseStationPower(
                             state: .standby,
