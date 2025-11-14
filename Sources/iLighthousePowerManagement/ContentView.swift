@@ -137,13 +137,22 @@ struct LighthouseRow: View {
             HStack {
                 LighthouseImageView(lighthouseBaseStation: device, isIdentifying: $isIdentifying)
                 VStack(alignment: .leading, spacing: 4) {
-                    powerStateSection
-                    channelSection
-                    LighthouseControlView(
-                        lighthouseBaseStation: device,
-                        lighthouseBLEManager: lighthouseBLEManager,
-                        isIdentifying: $isIdentifying
-                    )
+                    HStack {
+                        powerStateSection
+                        Spacer()
+                        channelSection
+                    }
+                    HStack(spacing: 10) {
+                        LighthouseControlView(
+                            lighthouseBaseStation: device,
+                            lighthouseBLEManager: lighthouseBLEManager,
+                        )
+                        LighthouseAdvancedControlView(
+                            lighthouseBaseStation: device,
+                            lighthouseBLEManager: lighthouseBLEManager,
+                            isIdentifying: $isIdentifying
+                        )
+                    }
                 }
                 .padding(.vertical, 4)
                 .opacity(lostLighthouseOpacity)
@@ -162,26 +171,32 @@ struct LighthouseRow: View {
     }
 
     private var powerStateSection: some View {
-        Text(device.rawPowerState != nil
-            ? String(
-                format: "Power State: \(device.lighthousePowerState.name)",
-                device.rawPowerState!)
-            : String(format: "Power State: \(device.lighthousePowerState.name)"))
-            .font(.subheadline)
-            .foregroundColor(powerStateColor)
-            .opacity(bootingOpacity)
-            .onAppear(perform: animateIfNeeded)
-            .onChange(of: device.lighthousePowerState) { _, _ in animateIfNeeded() }
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Status: ")
+            Text(device.rawPowerState != nil
+                ? String(
+                    format: "\(device.lighthousePowerState.name)",
+                    device.rawPowerState!)
+                : String(format: "\(device.lighthousePowerState.name)"))
+                .font(.subheadline)
+                .foregroundColor(powerStateColor)
+                .padding(.leading, 20) // ← consistent left spacing for line 2
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(bootingOpacity)
+                .onAppear(perform: animateIfNeeded)
+                .onChange(of: device.lighthousePowerState) { _, _ in animateIfNeeded() }
+        }
     }
 
     private var channelSection: some View {
-            if let rawChannel: UInt8 = device.rawChannel {
-                Text(String(format: "(Channel %d)", rawChannel))
-                    .font(.subheadline)
-            } else {
-                Text(String(format: "(Channel   )"))
-                    .font(.subheadline)
-            }
+
+        if let rawChannel: UInt8 = device.rawChannel {
+            Text(String(format: "Chan. %d", rawChannel))
+                .font(.subheadline)
+        } else {
+            Text(String(format: "Chan. ..."))
+                .font(.subheadline)
+        }
     }
 
     private var RSSISection: some View {
@@ -484,9 +499,6 @@ struct LighthouseControlView: View {
     let lighthouseBaseStation: LighthouseBaseStation
     let lighthouseBLEManager: LighthouseBLEManager
 
-    // For UI state like identify-blink overlay
-    @Binding var isIdentifying: Bool
-
     enum LighthouseButtonAction {
         case turnOn
         case turnOff
@@ -499,13 +511,9 @@ struct LighthouseControlView: View {
     ///
     /// Displays layered LED images with opacity and animation effects based on the device status.
     var body: some View {
-        HStack(spacing: 10) {
-            powerButton(
-                for: mapStateToAction(for: lighthouseBaseStation.lighthousePowerState)
-            )
-            identifyButton()
-            standbyButton()
-        }
+        powerButton(
+            for: mapStateToAction(for: lighthouseBaseStation.lighthousePowerState)
+        )
     }
 
     // MARK: - Helper functions
@@ -519,48 +527,6 @@ struct LighthouseControlView: View {
             return .turnOff
         default:
             return .inactive
-        }
-    }
-
-    // MARK: - Identify Button
-    private func identifyButton() -> some View {
-        ZStack {
-            Circle()
-                .fill(Color(.systemFill))
-                .frame(width: 65, height: 65)
-            Image(systemName: "eye")
-                .resizable()
-                .scaledToFit()
-                .foregroundColor(.teal)
-                .frame(width: 45, height: 45)
-                .onTapGesture {
-                    lighthouseBLEManager.identifyLighthouseBaseStation(
-                        lighthouseBaseStation: lighthouseBaseStation)
-                    // Trigger 20s identify blink
-                    isIdentifying = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
-                        isIdentifying = false
-                    }
-                }
-        }
-    }
-
-    // MARK: - Standby Button
-    private func standbyButton() -> some View {
-        ZStack {
-            Circle()
-                .fill(Color(.systemFill))
-                .frame(width: 65, height: 65)
-            Image(systemName: "power")
-                .resizable()
-                .scaledToFit()
-                .foregroundColor(.orange)
-                .frame(width: 45, height: 45)
-                .onTapGesture {
-                    lighthouseBLEManager.setBaseStationPower(
-                            state: .standby,
-                            lighthouseBaseStation: lighthouseBaseStation)
-                }
         }
     }
 
@@ -615,6 +581,70 @@ struct LighthouseControlView: View {
                         )
                     }
             )
+        }
+    }
+}
+
+// MARK: - LighthouseAdvancedControlView
+/// A SwiftUI view to set a lighthouse in standby or identify mode
+struct LighthouseAdvancedControlView: View {
+    // MARK: - Properties
+    let lighthouseBaseStation: LighthouseBaseStation
+    let lighthouseBLEManager: LighthouseBLEManager
+
+    // For UI state like identify-blink overlay
+    @Binding var isIdentifying: Bool
+
+    // MARK: - Body
+    /// The main body of the view.
+    ///
+    /// Displays layered LED images with opacity and animation effects based on the device status.
+    var body: some View {
+        HStack(spacing: 10) {
+            identifyButton()
+            standbyButton()
+        }
+    }
+
+    // MARK: - Identify Button
+    private func identifyButton() -> some View {
+        ZStack {
+            Circle()
+                .fill(Color(.systemFill))
+                .frame(width: 65, height: 65)
+            Image(systemName: "eye")
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.teal)
+                .frame(width: 45, height: 45)
+                .onTapGesture {
+                    lighthouseBLEManager.identifyLighthouseBaseStation(
+                        lighthouseBaseStation: lighthouseBaseStation)
+                    // Trigger 20s identify blink
+                    isIdentifying = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                        isIdentifying = false
+                    }
+                }
+        }
+    }
+
+    // MARK: - Standby Button
+    private func standbyButton() -> some View {
+        ZStack {
+            Circle()
+                .fill(Color(.systemFill))
+                .frame(width: 65, height: 65)
+            Image(systemName: "power")
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.orange)
+                .frame(width: 45, height: 45)
+                .onTapGesture {
+                    lighthouseBLEManager.setBaseStationPower(
+                            state: .standby,
+                            lighthouseBaseStation: lighthouseBaseStation)
+                }
         }
     }
 }
