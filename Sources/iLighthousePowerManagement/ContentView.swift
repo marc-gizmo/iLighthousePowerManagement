@@ -132,7 +132,11 @@ struct LighthouseRow: View {
                 headerSection
                 powerStateSection
                 channelAndRSSISection
-                controlSection
+                LighthouseControlView(
+                    lighthouseBaseStation: device,
+                    lighthouseBLEManager: lighthouseBLEManager,
+                    isIdentifying: $isIdentifying
+                )
             }
             .padding(.vertical, 4)
             .opacity(lostLighthouseOpacity)
@@ -173,44 +177,7 @@ struct LighthouseRow: View {
         }
     }
 
-    private var controlSection: some View {
-        VStack(spacing: 20) {
-            HStack(spacing: 20) {
-                powerButton("Power On", color: .green, state: .on)
-                powerButton("Power Off", color: .red, state: .sleep)
-            }
-
-            HStack(spacing: 20) {
-                Button("Identify   ", action: {
-                    lighthouseBLEManager.identifyLighthouseBaseStation(
-                            lighthouseBaseStation: device)
-                    /// tell LighthouseImageView to display identify blink
-                    /// for 20 seconds
-                    isIdentifying = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
-                        isIdentifying = false
-                    }
-                })
-                .foregroundColor(.teal)
-                .buttonStyle(.bordered)
-
-                powerButton("Standby   ", color: .orange, state: .standby)
-            }
-        }
-    }
-
     // MARK: - UI Helpers
-    private func powerButton(
-            _ title: String,
-            color: Color,
-            state: LighthousePowerCommand) -> some View {
-        Button(title) {
-            lighthouseBLEManager.setBaseStationPower(state: state, lighthouseBaseStation: device)
-        }
-        .foregroundColor(color)
-        .buttonStyle(.bordered)
-    }
-
     private var powerStateColor: Color {
         switch device.lighthousePowerState {
         case .on: return .green
@@ -492,6 +459,92 @@ struct LighthouseImageView: View {
                     identifyLEDVisible.toggle()
                 }
             }
+        }
+    }
+}
+
+// MARK: - LighthouseControlView
+/// A SwiftUI view to interract with a Lighthouse base station.
+///
+/// The `LighthouseControlView` handle buttons for interracting with the lighthouse
+struct LighthouseControlView: View {
+    // MARK: - Properties
+    let lighthouseBaseStation: LighthouseBaseStation
+    let lighthouseBLEManager: LighthouseBLEManager
+
+    // For UI state like identify-blink overlay
+    @Binding var isIdentifying: Bool
+
+    // MARK: - Body
+    /// The main body of the view.
+    ///
+    /// Displays layered LED images with opacity and animation effects based on the device status.
+    var body: some View {
+        VStack(spacing: 20) {
+            // Power row
+            HStack(spacing: 20) {
+                powerButton(color: .green, state: .on)
+                powerButton(color: .red, state: .sleep)
+            }
+
+            // Identify + standby row
+            HStack(spacing: 20) {
+                identifyButton()
+                powerButton(color: .orange, state: .standby)
+            }
+        }
+    }
+
+    // MARK: - Identify Button
+    private func identifyButton() -> some View {
+        ZStack {
+            Circle()
+                .fill(Color(.secondarySystemBackground))
+                .frame(width: 80, height: 80) // Set the size of the circle background
+            Image(systemName: "eye")
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.teal)
+                .frame(width: 60, height: 60)
+                .onTapGesture {
+                    lighthouseBLEManager.identifyLighthouseBaseStation(
+                        lighthouseBaseStation: lighthouseBaseStation)
+                    // Trigger 20s identify blink
+                    isIdentifying = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                        isIdentifying = false
+                    }
+                }
+        }
+    }
+
+    // MARK: - Power Button
+    private func powerButton(color: Color, state: LighthousePowerCommand) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color(.secondarySystemBackground))
+                .frame(width: 80, height: 80) // Set the size of the circle background
+            Image(systemName: "power")
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(color)
+                .frame(width: 60, height: 60)
+                .gesture(
+                    TapGesture(count: 2)
+                        .onEnded {
+                            // TODO: handle double tap
+                            DebugLog.shared.log("Double tap power")
+                        }
+                )
+                .simultaneousGesture(
+                    TapGesture()
+                        .onEnded {
+                            lighthouseBLEManager.setBaseStationPower(
+                                state: state,
+                                lighthouseBaseStation: lighthouseBaseStation
+                            )
+                        }
+                )
         }
     }
 }
