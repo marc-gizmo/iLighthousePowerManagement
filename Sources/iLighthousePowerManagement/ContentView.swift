@@ -56,6 +56,8 @@ struct ContentView: View {
                 }
                 .navigationTitle("Nearby Lighthouse Base Stations")
                 .navigationBarTitleDisplayMode(.inline)
+                .background(Color(.systemBackground))
+
                 #if DEBUG
                 DebugOverlay()
                     .frame(maxHeight: UIScreen.main.bounds.height * 0.2)
@@ -475,23 +477,38 @@ struct LighthouseControlView: View {
     // For UI state like identify-blink overlay
     @Binding var isIdentifying: Bool
 
+    enum LighthouseButtonAction {
+        case turnOn
+        case turnOff
+        case standby
+        case inactive
+    }
+
     // MARK: - Body
     /// The main body of the view.
     ///
     /// Displays layered LED images with opacity and animation effects based on the device status.
     var body: some View {
-        VStack(spacing: 20) {
-            // Power row
-            HStack(spacing: 20) {
-                powerButton(color: .green, state: .on)
-                powerButton(color: .red, state: .sleep)
-            }
+        HStack(spacing: 10) {
+            powerButton(
+                for: mapStateToAction(for: lighthouseBaseStation.lighthousePowerState)
+            )
+            identifyButton()
+            standbyButton()
+        }
+    }
 
-            // Identify + standby row
-            HStack(spacing: 20) {
-                identifyButton()
-                powerButton(color: .orange, state: .standby)
-            }
+    // MARK: - Helper functions
+    func mapStateToAction(for state: LighthousePowerState?) -> LighthouseButtonAction {
+        guard let state else { return .inactive }
+
+        switch state {
+        case .sleep, .standby:
+            return .turnOn
+        case .on, .booting:
+            return .turnOff
+        default:
+            return .inactive
         }
     }
 
@@ -499,13 +516,13 @@ struct LighthouseControlView: View {
     private func identifyButton() -> some View {
         ZStack {
             Circle()
-                .fill(Color(.secondarySystemBackground))
-                .frame(width: 80, height: 80) // Set the size of the circle background
+                .fill(Color(.systemFill))
+                .frame(width: 65, height: 65)
             Image(systemName: "eye")
                 .resizable()
                 .scaledToFit()
                 .foregroundColor(.teal)
-                .frame(width: 60, height: 60)
+                .frame(width: 45, height: 45)
                 .onTapGesture {
                     lighthouseBLEManager.identifyLighthouseBaseStation(
                         lighthouseBaseStation: lighthouseBaseStation)
@@ -518,33 +535,76 @@ struct LighthouseControlView: View {
         }
     }
 
-    // MARK: - Power Button
-    private func powerButton(color: Color, state: LighthousePowerCommand) -> some View {
+    // MARK: - Standby Button
+    private func standbyButton() -> some View {
         ZStack {
             Circle()
-                .fill(Color(.secondarySystemBackground))
-                .frame(width: 80, height: 80) // Set the size of the circle background
+                .fill(Color(.systemFill))
+                .frame(width: 65, height: 65)
             Image(systemName: "power")
                 .resizable()
                 .scaledToFit()
-                .foregroundColor(color)
-                .frame(width: 60, height: 60)
-                .gesture(
-                    TapGesture(count: 2)
-                        .onEnded {
-                            // TODO: handle double tap
-                            DebugLog.shared.log("Double tap power")
+                .foregroundColor(.orange)
+                .frame(width: 45, height: 45)
+                .onTapGesture {
+                    lighthouseBLEManager.setBaseStationPower(
+                            state: .standby,
+                            lighthouseBaseStation: lighthouseBaseStation)
+                }
+        }
+    }
+
+    // MARK: - Power Button that will change based on actual state
+    private func powerButton(for action: LighthouseButtonAction) -> some View {
+        let icon: String
+        let color: Color
+        let command: LighthousePowerCommand?
+
+        switch action {
+        case .turnOn:
+            icon = "power"
+            color = .green
+            command = .on
+        case .turnOff:
+            icon = "power"
+            color = .red
+            command = .sleep
+        default:
+            icon = "power"
+            color = .gray
+            command = nil
+        }
+
+        return ZStack {
+            Circle()
+                .fill(Color(.systemFill))
+                .frame(width: 65, height: 65)
+            Image(systemName: icon)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 45, height: 45)
+            .foregroundColor(color)
+            .opacity(command == nil ? 0.5 : 1.0)
+            .gesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        // TODO: handle double tap
+                        DebugLog.shared.log("Double tap power")
+                    }
+            )
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded {
+                        guard let cmd = command else {
+                            DebugLog.shared.log("Power button inactive")
+                            return
                         }
-                )
-                .simultaneousGesture(
-                    TapGesture()
-                        .onEnded {
-                            lighthouseBLEManager.setBaseStationPower(
-                                state: state,
-                                lighthouseBaseStation: lighthouseBaseStation
-                            )
-                        }
-                )
+                        lighthouseBLEManager.setBaseStationPower(
+                            state: cmd,
+                            lighthouseBaseStation: lighthouseBaseStation
+                        )
+                    }
+            )
         }
     }
 }
