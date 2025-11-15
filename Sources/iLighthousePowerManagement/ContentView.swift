@@ -639,6 +639,7 @@ struct LighthouseControlView: View {
                     guard let cmd = primaryCommand else {
                         return
                     }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     lighthouseBLEManager.setBaseStationPower(
                         state: cmd,
                         lighthouseBaseStation: lighthouseBaseStation
@@ -648,6 +649,7 @@ struct LighthouseControlView: View {
                     guard let cmd = alternateCommand else {
                         return
                     }
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                     lighthouseBLEManager.setBaseStationPower(
                         state: cmd,
                         lighthouseBaseStation: lighthouseBaseStation
@@ -690,6 +692,7 @@ struct LighthouseAdvancedControlView: View {
                 .foregroundColor(.teal)
                 .frame(width: 55, height: 55)
                 .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     lighthouseBLEManager.identifyLighthouseBaseStation(
                         lighthouseBaseStation: lighthouseBaseStation)
                     // Trigger 20s identify blink
@@ -713,6 +716,7 @@ struct LighthouseAdvancedControlView: View {
                 .foregroundColor(.orange)
                 .frame(width: 55, height: 55)
                 .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     lighthouseBLEManager.setBaseStationPower(
                             state: .standby,
                             lighthouseBaseStation: lighthouseBaseStation)
