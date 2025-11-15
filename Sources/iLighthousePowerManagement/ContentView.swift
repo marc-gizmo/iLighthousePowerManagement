@@ -462,6 +462,7 @@ struct LighthouseImageView: View {
             Image("BaseStationLEDOff", fromPackage: true)
                 .resizable()
                 .scaledToFit()
+                .shadow(color: .primary.opacity(0.12), radius: 5)
 
             // Regular LED layer
             Image(statusLED.imageName, fromPackage: true)
