@@ -18,7 +18,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "iLighthousePowerManagement"
+            name: "iLighthousePowerManagement",
+            resources: [
+                .process("Images")
+            ]
         )
     ]
 )
