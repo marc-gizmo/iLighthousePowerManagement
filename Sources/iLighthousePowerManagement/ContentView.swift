@@ -560,12 +560,13 @@ struct LighthouseControlView: View {
     ///
     /// Displays layered LED images with opacity and animation effects based on the device status.
     var body: some View {
-        powerButton(
-            for: mapStateToAction(for: lighthouseBaseStation.lighthousePowerState)
-        )
+        let primaryAction = mapStateToAction(for: lighthouseBaseStation.lighthousePowerState)
+        let alternateAction = mapStateToAlternateAction(for: lighthouseBaseStation.lighthousePowerState)
+
+        powerButton(primary: primaryAction, alternate: alternateAction)
     }
 
-    // MARK: - Helper functions
+    // MARK: - Action Mapping
     func mapStateToAction(for state: LighthousePowerState?) -> LighthouseButtonAction {
         guard let state else { return .inactive }
 
@@ -579,57 +580,77 @@ struct LighthouseControlView: View {
         }
     }
 
-    // MARK: - Power Button that will change based on actual state
-    private func powerButton(for action: LighthouseButtonAction) -> some View {
-        let icon: String
-        let color: Color
-        let command: LighthousePowerCommand?
+    func mapStateToAlternateAction(for state: LighthousePowerState?) -> LighthouseButtonAction {
+        guard let state else { return .inactive }
 
+        switch state {
+        case .sleep, .on:
+            return .standby
+        case .standby:
+            return .turnOff
+        default:
+            return .inactive
+        }
+    }
+
+    // MARK: - Convert Action → Power Command
+    func command(for action: LighthouseButtonAction) -> LighthousePowerCommand? {
         switch action {
         case .turnOn:
-            icon = "power"
-            color = .green
-            command = .on
+            return .on
         case .turnOff:
-            icon = "power"
+            return .sleep
+        case .standby:
+            return .standby
+        case .inactive:
+            return nil
+        }
+    }
+
+    // MARK: - Power Button that will change based on actual state
+    private func powerButton(primary: LighthouseButtonAction,
+            alternate: LighthouseButtonAction) -> some View {
+        let color: Color
+        let primaryCommand = command(for: primary)
+        let alternateCommand = command(for: alternate)
+
+        switch primary {
+        case .turnOn:
+            color = .green
+        case .turnOff:
             color = .red
-            command = .sleep
         default:
-            icon = "power"
             color = .gray
-            command = nil
         }
 
         return ZStack {
             Circle()
                 .fill(Color(.systemFill))
                 .frame(width: 70, height: 70)
-            Image(systemName: icon)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 45, height: 45)
-            .foregroundColor(color)
-            .opacity(command == nil ? 0.5 : 1.0)
-            .gesture(
-                TapGesture(count: 2)
-                    .onEnded {
-                        // TODO: handle double tap
-                        DebugLog.shared.log("Double tap power")
+            Image(systemName: "power")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 45, height: 45)
+                .foregroundColor(color)
+                .opacity(primaryCommand  == nil ? 0.5 : 1.0)
+                .onTapGesture {
+                    guard let cmd = primaryCommand else {
+                        return
                     }
-            )
-            .simultaneousGesture(
-                TapGesture()
-                    .onEnded {
-                        guard let cmd = command else {
-                            DebugLog.shared.log("Power button inactive")
-                            return
-                        }
-                        lighthouseBLEManager.setBaseStationPower(
-                            state: cmd,
-                            lighthouseBaseStation: lighthouseBaseStation
-                        )
+                    lighthouseBLEManager.setBaseStationPower(
+                        state: cmd,
+                        lighthouseBaseStation: lighthouseBaseStation
+                    )
+                }
+                .onLongPressGesture(minimumDuration: 0.6) {
+                    guard let cmd = alternateCommand else {
+                        return
                     }
-            )
+                    lighthouseBLEManager.setBaseStationPower(
+                        state: cmd,
+                        lighthouseBaseStation: lighthouseBaseStation
+                    )
+                }
         }
     }
 }
