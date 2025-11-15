@@ -188,6 +188,7 @@ struct LighthouseRow: View {
                         .tag(false)
 
                         HStack {
+                            Spacer()
                             LighthouseAdvancedControlView(
                                 lighthouseBaseStation: device,
                                 lighthouseBLEManager: lighthouseBLEManager,
